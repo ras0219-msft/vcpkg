@@ -60,6 +60,7 @@ file(
         ${SOURCE_PATH}/Installation/LICENSE.FREE_USE
         ${SOURCE_PATH}/Installation/LICENSE.GPL
         ${SOURCE_PATH}/Installation/LICENSE.LGPL
+        ${CMAKE_CURRENT_LIST_DIR}/usage
     DESTINATION ${CURRENT_PACKAGES_DIR}/share/cgal
 )
 
