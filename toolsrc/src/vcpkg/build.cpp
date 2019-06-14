@@ -673,23 +673,108 @@ namespace vcpkg::Build
 
         if (config.build_package_options.binary_caching == BinaryCaching::YES && abi_tag_and_file)
         {
+            const auto package_dir = paths.package_dir(spec);
+            std::error_code ec;
+
+            // First, check local nuget archives
+            const auto nuget_archives = paths.root / "archives.nuget";
+
+            const auto nuget_id = spec.dir();
+            const auto nuget_version = "0.0.0--" + abi_tag_and_file->tag;
+            const auto nuget_name = Strings::concat(nuget_id, ".", nuget_version, ".nupkg");
+            const auto nuget_archive_path = nuget_archives / nuget_name;
+
+            static auto escape = [](StringView s) { return Strings::concat('"', s, '"'); };
+            static auto escapep = [](const fs::path& p) { return escape(p.u8string()); };
+
+            auto maybe_feed = System::get_environment_variable("VCPKG_BINARYCACHING_FEED");
+
+            auto restored_from_cache = false;
+
+            {
+                // try to install from archives.nuget
+                if (fs.exists(nuget_archive_path))
+                {
+                    const auto nuget_exe = paths.get_tool_exe("nuget-devops");
+                    const auto install_rc =
+                        System::cmd_execute(Strings::concat(escapep(nuget_exe),
+                                                            " install ",
+                                                            nuget_id,
+                                                            " -ExcludeVersion -Version ",
+                                                            nuget_version,
+                                                            " -NoCache -DirectDownload -OutputDirectory ",
+                                                            escapep(paths.packages),
+                                                            " -Source ",
+                                                            escapep(nuget_archives),
+                                                            " -NonInteractive -PackageSaveMode nupkg"));
+                    if (install_rc == 0)
+                    {
+                        fs.remove(package_dir / (nuget_id + ".nupkg"));
+                        System::print2("Using cached binary package from Local NuGet\n");
+                        restored_from_cache = true;
+                    }
+                }
+            }
+
             const fs::path archives_root_dir = paths.root / "archives";
             const std::string archive_name = abi_tag_and_file->tag + ".zip";
             const fs::path archive_subpath = fs::u8path(abi_tag_and_file->tag.substr(0, 2)) / archive_name;
             const fs::path archive_path = archives_root_dir / archive_subpath;
             const fs::path archive_tombstone_path = archives_root_dir / "fail" / archive_subpath;
 
-            if (fs.exists(archive_path))
+            if (!restored_from_cache)
             {
-                System::print2("Using cached binary package: ", archive_path.u8string(), "\n");
+                if (fs.exists(archive_path))
+                {
+                    System::print2("Using cached binary package: ", archive_path.u8string(), "\n");
+                    decompress_archive(paths, spec, archive_path);
+                    restored_from_cache = true;
+                }
+            }
 
-                decompress_archive(paths, spec, archive_path);
+            if (!restored_from_cache)
+            {
+                if (auto feed = maybe_feed.get())
+                {
+                    fs.remove_all(package_dir, ec);
 
+                    // try to install from feed
+                    const auto nuget_exe = paths.get_tool_exe("nuget-devops");
+                    System::print2("Checking NuGet Feed for prebuilt package...\n");
+                    const auto install_rc = System::cmd_execute_and_capture_output(
+                        Strings::concat(escapep(nuget_exe),
+                                        " install ",
+                                        nuget_id,
+                                        " -ExcludeVersion -Version ",
+                                        nuget_version,
+                                        " -NoCache -DirectDownload -OutputDirectory ",
+                                        escapep(paths.packages),
+                                        " -Source ",
+                                        escape(*feed),
+                                        " -NonInteractive -PackageSaveMode nupkg"));
+                    if (install_rc.exit_code == 0)
+                    {
+                        std::error_code ec;
+                        fs.create_directory(nuget_archives, ec);
+                        fs.rename(package_dir / (nuget_id + ".nupkg"), nuget_archive_path);
+                        System::print2("Using cached binary package from NuGet\n");
+                        restored_from_cache = true;
+                    }
+                    else
+                    {
+                        Debug::print(install_rc.output, "\n");
+                    }
+                }
+            }
+
+            if (restored_from_cache)
+            {
                 auto maybe_bcf = Paragraphs::try_load_cached_package(paths, spec);
-                std::unique_ptr<BinaryControlFile> bcf =
-                    std::make_unique<BinaryControlFile>(std::move(maybe_bcf).value_or_exit(VCPKG_LINE_INFO));
+                auto bcf = std::make_unique<BinaryControlFile>(std::move(maybe_bcf).value_or_exit(VCPKG_LINE_INFO));
                 return {BuildResult::SUCCEEDED, std::move(bcf)};
             }
+
+            // Failed to restore from any cache options
 
             if (fs.exists(archive_tombstone_path))
             {
@@ -707,32 +792,99 @@ namespace vcpkg::Build
 
             System::print2("Could not locate cached archive: ", archive_path.u8string(), "\n");
 
-            ExtendedBuildResult result = do_build_package_and_clean_buildtrees(
-                paths, pre_build_info, spec, maybe_abi_tag_and_file.value_or(AbiTagAndFile{}).tag, config);
+            ExtendedBuildResult result =
+                do_build_package_and_clean_buildtrees(paths, pre_build_info, spec, abi_tag_and_file->tag, config);
 
-            std::error_code ec;
-            fs.create_directories(paths.package_dir(spec) / "share" / spec.name(), ec);
-            auto abi_file_in_package = paths.package_dir(spec) / "share" / spec.name() / "vcpkg_abi_info.txt";
+            fs.create_directories(package_dir / "share" / spec.name(), ec);
+            auto abi_file_in_package = package_dir / "share" / spec.name() / "vcpkg_abi_info.txt";
             fs.copy_file(abi_tag_and_file->tag_file, abi_file_in_package, fs::stdfs::copy_options::none, ec);
             Checks::check_exit(VCPKG_LINE_INFO, !ec, "Could not copy into file: %s", abi_file_in_package.u8string());
 
             if (result.code == BuildResult::SUCCEEDED)
             {
-                const auto tmp_archive_path = paths.buildtrees / spec.name() / (spec.triplet().to_string() + ".zip");
-
-                compress_archive(paths, spec, tmp_archive_path);
-
-                fs.create_directories(archive_path.parent_path(), ec);
-                fs.rename_or_copy(tmp_archive_path, archive_path, ".tmp", ec);
-                if (ec)
+                if (auto feed = maybe_feed.get())
                 {
-                    System::printf(System::Color::warning,
-                                   "Failed to store binary cache %s: %s\n",
-                                   archive_path.u8string(),
-                                   ec.message());
+                    static constexpr auto CONTENT_TEMPLATE = R"(
+<package>
+    <metadata>
+        <id>@NUGET_ID@</id>
+        <version>@VERSION@</version>
+        <authors>vcpkg</authors>
+        <description>
+            Vcpkg NuGet export
+        </description>
+    </metadata>
+    <files>
+        <file src="@PACKAGE_DIR@\**" target="" />
+    </files>
+</package>
+)";
+
+                    std::string nuspec_file_content = Strings::replace_all(CONTENT_TEMPLATE, "@NUGET_ID@", nuget_id);
+                    nuspec_file_content =
+                        Strings::replace_all(std::move(nuspec_file_content), "@VERSION@", nuget_version);
+                    nuspec_file_content =
+                        Strings::replace_all(std::move(nuspec_file_content), "@PACKAGE_DIR@", package_dir.u8string());
+
+                    const auto buildtree_dir = paths.buildtrees / spec.name();
+                    const auto nuspec_path = buildtree_dir / (nuget_id + ".nuspec");
+                    fs.write_contents(nuspec_path, nuspec_file_content);
+
+                    const auto nuget_exe = paths.get_tool_exe("nuget-devops");
+                    auto pack_rc = System::cmd_execute_and_capture_output(
+                        Strings::concat(escapep(nuget_exe),
+                                        " pack ",
+                                        escapep(nuspec_path),
+                                        " -OutputDirectory ",
+                                        escapep(buildtree_dir),
+                                        " -NoDefaultExcludes -NonInteractive -ForceEnglishOutput"));
+
+                    if (pack_rc.exit_code != 0)
+                    {
+                        System::print2(System::Color::error,
+                                       "Packing NuGet failed. Use --debug for more information.\n");
+                        Debug::print(pack_rc.output, "\n");
+                    }
+                    else
+                    {
+                        fs.rename(buildtree_dir / Strings::concat(nuget_id, '.', nuget_version, ".nupkg"),
+                                  nuget_archive_path);
+
+                        System::print2("Uploading package to NuGet Feed\n");
+                        auto rc = System::cmd_execute_and_capture_output(
+                            Strings::concat(escapep(nuget_exe),
+                                            " push ",
+                                            escapep(nuget_archive_path),
+                                            " -Source ",
+                                            escape(*feed),
+                                            " -ApiKey AzureDevOps -NonInteractive -ForceEnglishOutput"));
+                        if (rc.exit_code != 0)
+                        {
+                            System::print2(System::Color::error,
+                                           "Upload to NuGet failed. Use --debug for more information.\n");
+                            Debug::print(rc.output, "\n");
+                        }
+                    }
                 }
                 else
-                    System::printf("Stored binary cache: %s\n", archive_path.u8string());
+                {
+                    const auto tmp_archive_path =
+                        paths.buildtrees / spec.name() / (spec.triplet().to_string() + ".zip");
+
+                    compress_archive(paths, spec, tmp_archive_path);
+
+                    fs.create_directories(archive_path.parent_path(), ec);
+                    fs.rename_or_copy(tmp_archive_path, archive_path, ".tmp", ec);
+                    if (ec)
+                    {
+                        System::printf(System::Color::warning,
+                                       "Failed to store binary cache %s: %s\n",
+                                       archive_path.u8string(),
+                                       ec.message());
+                    }
+                    else
+                        System::printf("Stored binary cache: %s\n", archive_path.u8string());
+                }
             }
             else if (result.code == BuildResult::BUILD_FAILED || result.code == BuildResult::POST_BUILD_CHECKS_FAILED)
             {

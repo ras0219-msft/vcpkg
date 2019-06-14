@@ -114,4 +114,11 @@
         <sha512>56a55ae9a6b5dfad4f28f9fe9b8114f1475c999d2f07fff7efa7375f987e74b498e9b63c41fc6c577756f15f3a1459c6d5d367902de3bedebdf9a9fd49089a86</sha512>
         <archiveName>ninja-freebsd-1.8.2.zip</archiveName>
     </tool>
+    <tool name="nuget-devops" os="windows">
+        <version>1.0.0</version>
+        <exeRelativePath>NuGet.exe</exeRelativePath>
+        <url>https://pkgs.dev.azure.com/vcpkg/_apis/public/nuget/client/CredentialProviderBundle.zip</url>
+        <sha512>10fe5d7f4e2bd91a1ff354e23de7c9d72961801f41c3b0af06c7d0c7445d6afd53f3ca34a9dfae5cadc5b69d7039148d4aedca8ab7c902dc5b14f3f546013484</sha512>
+        <archiveName>CredentialProviderBundle-1.0.0.zip</archiveName>
+    </tool>
 </tools>
