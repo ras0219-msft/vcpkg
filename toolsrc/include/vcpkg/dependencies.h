@@ -49,6 +49,7 @@ namespace vcpkg::Dependencies
 
         InstallPlanAction(const PackageSpec& spec,
                           const SourceControlFile& scf,
+                          Optional<fs::path>&& port_dir,
                           const std::set<std::string>& features,
                           const RequestType& request_type,
                           std::vector<PackageSpec>&& dependencies);
@@ -56,16 +57,17 @@ namespace vcpkg::Dependencies
         std::string displayname() const;
 
         PackageSpec spec;
+        Optional<Build::AbiTagAndFile> abi;
 
-        Optional<const SourceControlFile&> source_control_file;
         Optional<InstalledPackageView> installed_package;
-
         InstallPlanType plan_type;
         RequestType request_type;
+
+        Optional<const SourceControlFile&> source_control_file;
         Build::BuildPackageOptions build_options;
         std::set<std::string> feature_list;
-
         std::vector<PackageSpec> computed_dependencies;
+        Optional<fs::path> port_dir;
     };
 
     enum class RemovePlanType

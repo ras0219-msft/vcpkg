@@ -30,7 +30,7 @@ namespace vcpkg
         {
         }
 
-        template<size_t N>
+        template<size_t N, class = std::enable_if_t<std::is_const<T>::value>>
         constexpr Span(std::remove_const_t<T> (&arr)[N]) noexcept : m_ptr(arr), m_count(N)
         {
         }

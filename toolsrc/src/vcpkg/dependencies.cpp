@@ -152,16 +152,18 @@ namespace vcpkg::Dependencies
 
     InstallPlanAction::InstallPlanAction(const PackageSpec& spec,
                                          const SourceControlFile& scf,
+                                         Optional<fs::path>&& port_dir,
                                          const std::set<std::string>& features,
                                          const RequestType& request_type,
                                          std::vector<PackageSpec>&& dependencies)
         : spec(spec)
-        , source_control_file(scf)
         , plan_type(InstallPlanType::BUILD_AND_INSTALL)
         , request_type(request_type)
+        , source_control_file(scf)
         , build_options{}
         , feature_list(features)
         , computed_dependencies(std::move(dependencies))
+        , port_dir(std::move(port_dir))
     {
     }
 
@@ -706,6 +708,7 @@ namespace vcpkg::Dependencies
                 plan.emplace_back(InstallPlanAction{
                     p_cluster->spec,
                     *pscf,
+                    {},
                     p_cluster->to_install_features,
                     p_cluster->request_type,
                     std::move(dep_specs),

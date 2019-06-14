@@ -6,6 +6,7 @@
 #include <vcpkg/vcpkgcmdarguments.h>
 #include <vcpkg/vcpkgpaths.h>
 
+#include <vcpkg/base/cache.h>
 #include <vcpkg/base/cstringview.h>
 #include <vcpkg/base/files.h>
 #include <vcpkg/base/optional.h>
@@ -14,6 +15,12 @@
 #include <map>
 #include <set>
 #include <vector>
+
+namespace vcpkg::Dependencies
+{
+    struct AnyAction;
+    struct InstallPlanAction;
+}
 
 namespace vcpkg::Build
 {
@@ -150,30 +157,8 @@ namespace vcpkg::Build
         std::unique_ptr<BinaryControlFile> binary_control_file;
     };
 
-    struct BuildPackageConfig
-    {
-        BuildPackageConfig(const SourceControlFile& src,
-                           const Triplet& triplet,
-                           fs::path&& port_dir,
-                           const BuildPackageOptions& build_package_options,
-                           const std::set<std::string>& feature_list)
-            : scf(src)
-            , triplet(triplet)
-            , port_dir(std::move(port_dir))
-            , build_package_options(build_package_options)
-            , feature_list(feature_list)
-        {
-        }
-
-        const SourceControlFile& scf;
-        const Triplet& triplet;
-        fs::path port_dir;
-        const BuildPackageOptions& build_package_options;
-        const std::set<std::string>& feature_list;
-    };
-
     ExtendedBuildResult build_package(const VcpkgPaths& paths,
-                                      const BuildPackageConfig& config,
+                                      const Dependencies::InstallPlanAction& config,
                                       const StatusParagraphs& status_db);
 
     enum class BuildPolicy
@@ -251,8 +236,8 @@ namespace vcpkg::Build
         fs::path tag_file;
     };
 
-    Optional<AbiTagAndFile> compute_abi_tag(const VcpkgPaths& paths,
-                                            const BuildPackageConfig& config,
-                                            const PreBuildInfo& pre_build_info,
-                                            Span<const AbiEntry> dependency_abis);
+    void compute_all_abi_tags(const VcpkgPaths& paths,
+                              std::map<PackageSpec, std::string>& abi_tag_map,
+                              vcpkg::Cache<Triplet, PreBuildInfo>& pre_build_info_cache,
+                              Span<Dependencies::AnyAction> action_plan);
 }

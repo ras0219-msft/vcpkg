@@ -329,14 +329,7 @@ namespace vcpkg::Install
             else
                 System::printf("Building package %s...\n", display_name_with_features);
 
-            auto result = [&]() -> Build::ExtendedBuildResult {
-                const Build::BuildPackageConfig build_config{action.source_control_file.value_or_exit(VCPKG_LINE_INFO),
-                                                             action.spec.triplet(),
-                                                             paths.port_dir(action.spec),
-                                                             action.build_options,
-                                                             action.feature_list};
-                return Build::build_package(paths, build_config, status_db);
-            }();
+            auto result = Build::build_package(paths, action, status_db);
 
             if (result.code != Build::BuildResult::SUCCEEDED)
             {
@@ -659,21 +652,30 @@ namespace vcpkg::Install
         MapPortFileProvider provider(scf_map);
 
         // Note: action_plan will hold raw pointers to SourceControlFiles from this map
-        std::vector<AnyAction> action_plan =
-            create_feature_install_plan(provider, FullPackageSpec::to_feature_specs(specs), status_db);
+        auto action_plan = create_feature_install_plan(provider, FullPackageSpec::to_feature_specs(specs), status_db);
+
+        // install plan will be empty if it is already installed - need to change this at status paragraph part
+        Checks::check_exit(VCPKG_LINE_INFO, !action_plan.empty(), "Install plan cannot be empty");
 
         for (auto&& action : action_plan)
         {
             if (auto p_install = action.install_action.get())
             {
+                p_install->port_dir = paths.port_dir(p_install->spec);
+
                 p_install->build_options = install_plan_options;
                 if (p_install->request_type != RequestType::USER_REQUESTED)
                     p_install->build_options.use_head_version = Build::UseHeadVersion::NO;
             }
         }
 
-        // install plan will be empty if it is already installed - need to change this at status paragraph part
-        Checks::check_exit(VCPKG_LINE_INFO, !action_plan.empty(), "Install plan cannot be empty");
+        if (GlobalState::g_binary_caching)
+        {
+            // Fill in the abi fields of all install actions
+            std::map<PackageSpec, std::string> abi_tag_map;
+            vcpkg::Cache<Triplet, Build::PreBuildInfo> pre_build_info_cache;
+            Build::compute_all_abi_tags(paths, abi_tag_map, pre_build_info_cache, action_plan);
+        }
 
         // log the plan
         const std::string specs_string = Strings::join(",", action_plan, [](const AnyAction& action) {

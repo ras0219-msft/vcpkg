@@ -230,40 +230,18 @@ namespace vcpkg::Commands::CI
         {
             if (auto p = action.install_action.get())
             {
-                // determine abi tag
-                std::string abi;
-                if (auto scf = p->source_control_file.get())
-                {
-                    auto triplet = p->spec.triplet();
+                p->build_options = build_options;
+                p->port_dir = paths.port_dir(p->spec);
+            }
+        }
 
-                    const Build::BuildPackageConfig build_config{
-                        *scf, triplet, paths.port_dir(p->spec), build_options, p->feature_list};
+        Build::compute_all_abi_tags(paths, ret->abi_tag_map, pre_build_info_cache, action_plan);
 
-                    auto dependency_abis =
-                        Util::fmap(p->computed_dependencies, [&](const PackageSpec& spec) -> Build::AbiEntry {
-                            auto it = ret->abi_tag_map.find(spec);
-
-                            if (it == ret->abi_tag_map.end())
-                                return {spec.name(), ""};
-                            else
-                                return {spec.name(), it->second};
-                        });
-                    const auto& pre_build_info = pre_build_info_cache.get_lazy(
-                        triplet, [&]() { return Build::PreBuildInfo::from_triplet_file(paths, triplet); });
-
-                    auto maybe_tag_and_file =
-                        Build::compute_abi_tag(paths, build_config, pre_build_info, dependency_abis);
-                    if (auto tag_and_file = maybe_tag_and_file.get())
-                    {
-                        abi = tag_and_file->tag;
-                        ret->abi_tag_map.emplace(p->spec, abi);
-                    }
-                }
-                else if (auto ipv = p->installed_package.get())
-                {
-                    abi = ipv->core->package.abi;
-                    if (!abi.empty()) ret->abi_tag_map.emplace(p->spec, abi);
-                }
+        for (auto&& action : action_plan)
+        {
+            if (auto p = action.install_action.get())
+            {
+                const auto& abi = p->abi.value_or_exit(VCPKG_LINE_INFO).tag;
 
                 std::string state;
 
