@@ -239,5 +239,6 @@ namespace vcpkg::Build
     void compute_all_abi_tags(const VcpkgPaths& paths,
                               std::map<PackageSpec, std::string>& abi_tag_map,
                               vcpkg::Cache<Triplet, PreBuildInfo>& pre_build_info_cache,
-                              Span<Dependencies::AnyAction> action_plan);
+                              Span<Dependencies::AnyAction> action_plan,
+                              const StatusParagraphs& status_db);
 }

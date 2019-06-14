@@ -235,7 +235,7 @@ namespace vcpkg::Commands::CI
             }
         }
 
-        Build::compute_all_abi_tags(paths, ret->abi_tag_map, pre_build_info_cache, action_plan);
+        Build::compute_all_abi_tags(paths, ret->abi_tag_map, pre_build_info_cache, action_plan, {});
 
         for (auto&& action : action_plan)
         {

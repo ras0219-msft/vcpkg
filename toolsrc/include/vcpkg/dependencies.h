@@ -37,6 +37,8 @@ namespace vcpkg::Dependencies
         EXCLUDED
     };
 
+    std::string nuget_package_version(const std::string& version, const std::string& abi_tag);
+
     struct InstallPlanAction : Util::MoveOnlyBase
     {
         static bool compare_by_name(const InstallPlanAction* left, const InstallPlanAction* right);

@@ -433,28 +433,33 @@ namespace vcpkg::Install
             {
                 if (!action.install_action) continue;
                 const auto& ipa = action.install_action.value_or_exit(VCPKG_LINE_INFO);
-                if (!ipa.source_control_file)
+                if (ipa.plan_type != InstallPlanType::BUILD_AND_INSTALL)
                 {
                     // This install action represents an already installed package
                     continue;
                 }
 
-                ++packages_to_restore;
+                if (ipa.abi && !ipa.abi.get()->tag.empty())
+                {
+                    ++packages_to_restore;
 
-                // Purge all existing unpacked staging directories
-                auto package_dir = paths.package_dir(ipa.spec);
-                std::error_code ec;
-                fs.remove_all(package_dir, ec);
-                Checks::check_exit(
-                    VCPKG_LINE_INFO, !fs.exists(package_dir), "Unable to remove directory %s", package_dir.u8string());
+                    // Purge all existing unpacked staging directories
+                    auto package_dir = paths.package_dir(ipa.spec);
+                    std::error_code ec;
+                    fs.remove_all(package_dir, ec);
+                    Checks::check_exit(VCPKG_LINE_INFO,
+                                       !fs.exists(package_dir),
+                                       "Unable to remove directory %s",
+                                       package_dir.u8string());
 
-                // Add the package to packages.config
-                Strings::append(packages_config_content,
-                                "    <package id=\"",
-                                ipa.spec.dir(),
-                                "\" version=\"",
-                                ipa.nuget_package_version(),
-                                "\" />\n");
+                    // Add the package to packages.config
+                    Strings::append(packages_config_content,
+                                    "    <package id=\"",
+                                    ipa.spec.dir(),
+                                    "\" version=\"",
+                                    ipa.nuget_package_version(),
+                                    "\" />\n");
+                }
             }
 
             packages_config_content += "</packages>\n";
@@ -754,7 +759,7 @@ namespace vcpkg::Install
             // Fill in the abi fields of all install actions
             std::map<PackageSpec, std::string> abi_tag_map;
             vcpkg::Cache<Triplet, Build::PreBuildInfo> pre_build_info_cache;
-            Build::compute_all_abi_tags(paths, abi_tag_map, pre_build_info_cache, action_plan);
+            Build::compute_all_abi_tags(paths, abi_tag_map, pre_build_info_cache, action_plan, status_db);
         }
 
         // log the plan
