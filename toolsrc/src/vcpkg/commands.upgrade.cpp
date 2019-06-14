@@ -166,7 +166,8 @@ namespace vcpkg::Commands::Upgrade
         {
             if (auto p_install = action.install_action.get())
             {
-                p_install->build_options = install_plan_options;
+                if (auto build_action = p_install->build_action.get())
+                    build_action->build_options = install_plan_options;
             }
         }
 

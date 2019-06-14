@@ -146,7 +146,7 @@ namespace vcpkg::Dependencies
     }
 
     InstallPlanAction::InstallPlanAction() noexcept
-        : plan_type(InstallPlanType::UNKNOWN), request_type(RequestType::UNKNOWN), build_options{}
+        : plan_type(InstallPlanType::UNKNOWN), request_type(RequestType::UNKNOWN)
     {
     }
 
@@ -157,13 +157,11 @@ namespace vcpkg::Dependencies
                                          const RequestType& request_type,
                                          std::vector<PackageSpec>&& dependencies)
         : spec(spec)
-        , plan_type(InstallPlanType::BUILD_AND_INSTALL)
-        , request_type(request_type)
-        , source_control_file(scf)
-        , build_options{}
         , feature_list(features)
         , computed_dependencies(std::move(dependencies))
-        , port_dir(std::move(port_dir))
+        , plan_type(InstallPlanType::BUILD_AND_INSTALL)
+        , request_type(request_type)
+        , build_action(BuildAndInstallAction{scf, Build::BuildPackageOptions{}, std::move(port_dir)})
     {
     }
 
@@ -171,12 +169,11 @@ namespace vcpkg::Dependencies
                                          const std::set<std::string>& features,
                                          const RequestType& request_type)
         : spec(ipv.spec())
-        , installed_package(std::move(ipv))
+        , feature_list(features)
+        , computed_dependencies(ipv.dependencies())
         , plan_type(InstallPlanType::ALREADY_INSTALLED)
         , request_type(request_type)
-        , build_options{}
-        , feature_list(features)
-        , computed_dependencies(installed_package.get()->dependencies())
+        , installed_package(std::move(ipv))
     {
     }
 
@@ -191,11 +188,21 @@ namespace vcpkg::Dependencies
         return Strings::format("%s[%s]:%s", this->spec.name(), features, this->spec.triplet());
     }
 
+    const std::string& InstallPlanAction::version() const
+    {
+        switch (plan_type){
+            case InstallPlanType::ALREADY_INSTALLED:
+                return installed_package.value_or_exit(VCPKG_LINE_INFO).core->package.version;
+            case InstallPlanType::BUILD_AND_INSTALL:
+                return build_action.value_or_exit(VCPKG_LINE_INFO).scf.core_paragraph->version;
+            default:
+                Checks::unreachable(VCPKG_LINE_INFO);
+        }
+    }
+
     std::string InstallPlanAction::nuget_package_version() const
     {
-        return Dependencies::nuget_package_version(
-            source_control_file.value_or_exit(VCPKG_LINE_INFO).core_paragraph->version,
-            abi.value_or_exit(VCPKG_LINE_INFO).tag);
+        return Dependencies::nuget_package_version(version(), abi.value_or_exit(VCPKG_LINE_INFO).tag);
     }
 
     std::string Dependencies::nuget_package_version(const std::string& version, const std::string& abi_tag)
@@ -861,7 +868,10 @@ namespace vcpkg::Dependencies
 
         static auto actions_to_output_string = [](const std::vector<const InstallPlanAction*>& v) {
             return Strings::join("\n", v, [](const InstallPlanAction* p) {
-                return to_output_string(p->request_type, p->displayname(), p->build_options);
+                if (auto build_action = p->build_action.get())
+                    return to_output_string(p->request_type, p->displayname(), build_action->build_options);
+                else
+                    return to_output_string(p->request_type, p->displayname(), {});
             });
         };
 

@@ -298,15 +298,9 @@ namespace vcpkg::Install
         const std::string display_name_with_features = action.displayname();
 
         const bool is_user_requested = action.request_type == RequestType::USER_REQUESTED;
-        const bool use_head_version = Util::Enum::to_bool(action.build_options.use_head_version);
 
         if (plan_type == InstallPlanType::ALREADY_INSTALLED)
         {
-            if (use_head_version && is_user_requested)
-                System::printf(System::Color::warning,
-                               "Package %s is already installed -- not building from HEAD\n",
-                               display_name);
-            else
                 System::printf(System::Color::success, "Package %s is already installed\n", display_name);
             return BuildResult::SUCCEEDED;
         }
@@ -326,6 +320,9 @@ namespace vcpkg::Install
 
         if (plan_type == InstallPlanType::BUILD_AND_INSTALL)
         {
+            const auto& build_action = action.build_action.value_or_exit(VCPKG_LINE_INFO);
+            const bool use_head_version = Util::Enum::to_bool(build_action.build_options.use_head_version);
+
             if (use_head_version)
                 System::printf("Building package %s from HEAD...\n", display_name_with_features);
             else
@@ -345,7 +342,7 @@ namespace vcpkg::Install
                 Paragraphs::try_load_cached_package(paths, action.spec).value_or_exit(VCPKG_LINE_INFO));
             auto code = aux_install(display_name_with_features, *bcf);
 
-            if (action.build_options.clean_packages == Build::CleanPackages::YES)
+            if (build_action.build_options.clean_packages == Build::CleanPackages::YES)
             {
                 auto& fs = paths.get_filesystem();
                 const fs::path package_dir = paths.package_dir(action.spec);
@@ -353,7 +350,7 @@ namespace vcpkg::Install
                 fs.remove_all(package_dir, ec);
             }
 
-            if (action.build_options.clean_downloads == Build::CleanDownloads::YES)
+            if (build_action.build_options.clean_downloads == Build::CleanDownloads::YES)
             {
                 auto& fs = paths.get_filesystem();
                 const fs::path download_dir = paths.downloads;
@@ -422,11 +419,15 @@ namespace vcpkg::Install
 
         auto& fs = paths.get_filesystem();
 
+        Debug::print("abc ", VCPKG_LINE_INFO, "\n");
+
         if (GlobalState::g_binary_caching && feed)
         {
             std::string packages_config_content = R"(<?xml version="1.0" encoding="utf-8"?>
 <packages>
 )";
+            Debug::print("abc ", VCPKG_LINE_INFO, ": ", *feed,"\n");
+
             int packages_to_restore = 0;
 
             for (auto&& action : action_plan)
@@ -746,11 +747,14 @@ namespace vcpkg::Install
         {
             if (auto p_install = action.install_action.get())
             {
-                p_install->port_dir = paths.port_dir(p_install->spec);
+                if (auto build_action = p_install->build_action.get())
+                {
+                    build_action->port_dir = paths.port_dir(p_install->spec);
 
-                p_install->build_options = install_plan_options;
-                if (p_install->request_type != RequestType::USER_REQUESTED)
-                    p_install->build_options.use_head_version = Build::UseHeadVersion::NO;
+                    build_action->build_options = install_plan_options;
+                    if (p_install->request_type != RequestType::USER_REQUESTED)
+                        build_action->build_options.use_head_version = Build::UseHeadVersion::NO;
+                }
             }
         }
 

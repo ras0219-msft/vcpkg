@@ -230,8 +230,11 @@ namespace vcpkg::Commands::CI
         {
             if (auto p = action.install_action.get())
             {
-                p->build_options = build_options;
-                p->port_dir = paths.port_dir(p->spec);
+                if (auto build_action = p->build_action.get())
+                {
+                    build_action->build_options = build_options;
+                    build_action->port_dir = paths.port_dir(p->spec);
+                }
             }
         }
 
@@ -398,7 +401,11 @@ namespace vcpkg::Commands::CI
                     {
                         if (auto p = action.install_action.get())
                         {
-                            p->build_options = install_plan_options;
+                            if (auto build_action = p->build_action.get())
+                            {
+                                build_action->build_options = install_plan_options;
+                            }
+
                             if (Util::Sets::contains(exclusions_set, p->spec.name()))
                             {
                                 p->plan_type = InstallPlanType::EXCLUDED;

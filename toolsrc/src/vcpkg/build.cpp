@@ -356,7 +356,8 @@ namespace vcpkg::Build
                                                 const Dependencies::InstallPlanAction& config)
     {
         auto& fs = paths.get_filesystem();
-        const auto& scf = config.source_control_file.value_or_exit(VCPKG_LINE_INFO);
+        const auto& build_action = config.build_action.value_or_exit(VCPKG_LINE_INFO);
+        const auto& scf = build_action.scf;
 
 #if !defined(_WIN32)
         // TODO: remove when vcpkg.exe is in charge for acquiring tools. Change introduced in vcpkg v0.0.107.
@@ -378,13 +379,13 @@ namespace vcpkg::Build
         std::vector<System::CMakeVariable> variables{
             {"CMD", "BUILD"},
             {"PORT", scf.core_paragraph->name},
-            {"CURRENT_PORT_DIR", config.port_dir.value_or_exit(VCPKG_LINE_INFO)},
+            {"CURRENT_PORT_DIR", build_action.port_dir.value_or_exit(VCPKG_LINE_INFO)},
             {"TARGET_TRIPLET", config.spec.triplet().canonical_name()},
             {"VCPKG_PLATFORM_TOOLSET", toolset.version.c_str()},
-            {"VCPKG_USE_HEAD_VERSION", Util::Enum::to_bool(config.build_options.use_head_version) ? "1" : "0"},
+            {"VCPKG_USE_HEAD_VERSION", Util::Enum::to_bool(build_action.build_options.use_head_version) ? "1" : "0"},
             {"DOWNLOADS", paths.downloads},
-            {"_VCPKG_NO_DOWNLOADS", !Util::Enum::to_bool(config.build_options.allow_downloads) ? "1" : "0"},
-            {"_VCPKG_DOWNLOAD_TOOL", to_string(config.build_options.download_tool)},
+            {"_VCPKG_NO_DOWNLOADS", !Util::Enum::to_bool(build_action.build_options.allow_downloads) ? "1" : "0"},
+            {"_VCPKG_DOWNLOAD_TOOL", to_string(build_action.build_options.download_tool)},
             {"FEATURES", Strings::join(";", config.feature_list)},
             {"ALL_FEATURES", all_features},
             {"VCPKG_CONCURRENCY", std::to_string(get_concurrency())},
@@ -454,12 +455,13 @@ namespace vcpkg::Build
                                                                      const Dependencies::InstallPlanAction& config)
     {
         auto result = do_build_package(paths, pre_build_info, config);
+        const auto& build_action = config.build_action.value_or_exit(VCPKG_LINE_INFO);
 
-        if (config.build_options.clean_buildtrees == CleanBuildtrees::YES)
+        if (build_action.build_options.clean_buildtrees == CleanBuildtrees::YES)
         {
             auto& fs = paths.get_filesystem();
             const fs::path buildtrees_dir =
-                paths.buildtrees / config.source_control_file.value_or_exit(VCPKG_LINE_INFO).core_paragraph->name;
+                paths.buildtrees / build_action.scf.core_paragraph->name;
             auto buildtree_files = fs.get_files_non_recursive(buildtrees_dir);
             for (auto&& file : buildtree_files)
             {
@@ -479,11 +481,13 @@ namespace vcpkg::Build
                                             const PreBuildInfo& pre_build_info,
                                             Span<const AbiEntry> dependency_abis)
     {
-        if (config.build_options.binary_caching == BinaryCaching::NO) return nullopt;
+        const auto& build_action = config.build_action.value_or_exit(VCPKG_LINE_INFO);
+
+        if (build_action.build_options.binary_caching == BinaryCaching::NO) return nullopt;
 
         auto& fs = paths.get_filesystem();
         const Triplet& triplet = config.spec.triplet();
-        const auto& scf = config.source_control_file.value_or_exit(VCPKG_LINE_INFO);
+        const auto& scf = build_action.scf;
         const std::string& name = scf.core_paragraph->name;
 
         std::vector<AbiEntry> abi_tag_entries(dependency_abis.begin(), dependency_abis.end());
@@ -497,7 +501,7 @@ namespace vcpkg::Build
 
         // the order of recursive_directory_iterator is undefined so save the names to sort
         std::vector<fs::path> port_files;
-        for (auto& port_file : fs::stdfs::recursive_directory_iterator(config.port_dir.value_or_exit(VCPKG_LINE_INFO)))
+        for (auto& port_file : fs::stdfs::recursive_directory_iterator(build_action.port_dir.value_or_exit(VCPKG_LINE_INFO)))
         {
             if (fs::is_regular_file(status(port_file)))
             {
@@ -538,7 +542,7 @@ namespace vcpkg::Build
         const std::string features = Strings::join(";", config.feature_list);
         abi_tag_entries.emplace_back(AbiEntry{"features", features});
 
-        if (config.build_options.use_head_version == UseHeadVersion::YES)
+        if (build_action.build_options.use_head_version == UseHeadVersion::YES)
             abi_tag_entries.emplace_back(AbiEntry{"head", ""});
 
         Util::sort(abi_tag_entries);
@@ -588,7 +592,7 @@ namespace vcpkg::Build
             if (auto p = action.install_action.get())
             {
                 // determine abi tag
-                if (auto scf = p->source_control_file.get())
+                if (auto build_action = p->build_action.get())
                 {
                     auto triplet = p->spec.triplet();
 
@@ -679,7 +683,8 @@ namespace vcpkg::Build
                                       const StatusParagraphs& status_db)
     {
         auto& fs = paths.get_filesystem();
-        const auto& scf = config.source_control_file.value_or_exit(VCPKG_LINE_INFO);
+        const auto& build_action = config.build_action.value_or_exit(VCPKG_LINE_INFO);
+        const auto& scf = build_action.scf;
         const std::string& name = scf.core_paragraph->name;
 
         std::vector<FeatureSpec> required_fspecs =
@@ -735,8 +740,6 @@ namespace vcpkg::Build
             static auto escape = [](StringView s) { return Strings::concat('"', s, '"'); };
             static auto escapep = [](const fs::path& p) { return escape(p.u8string()); };
 
-            auto maybe_feed = System::get_environment_variable("VCPKG_BINARYCACHING_FEED");
-
             auto restored_from_cache = false;
             {
                 const auto nupkg_in_package_dir = package_dir / (nuget_id + ".nupkg");
@@ -783,7 +786,7 @@ namespace vcpkg::Build
 
             if (fs.exists(archive_tombstone_path))
             {
-                if (config.build_options.fail_on_tombstone == FailOnTombstone::YES)
+                if (build_action.build_options.fail_on_tombstone == FailOnTombstone::YES)
                 {
                     System::print2("Found failure tombstone: ", archive_tombstone_path.u8string(), "\n");
                     return BuildResult::BUILD_FAILED;
@@ -806,6 +809,8 @@ namespace vcpkg::Build
 
             if (result.code == BuildResult::SUCCEEDED)
             {
+                const auto maybe_feed = System::get_environment_variable("VCPKG_BINARYCACHING_FEED");
+
                 if (auto feed = maybe_feed.get())
                 {
                     static constexpr auto CONTENT_TEMPLATE = R"(
@@ -883,7 +888,6 @@ namespace vcpkg::Build
                     }
                     else
                     {
-                        std::error_code ec;
                         fs.create_directories(nuget_archives, ec);
                         fs.rename(buildtree_dir / Strings::concat(nuget_id, '.', nuget_version, ".nupkg"),
                                   nuget_archive_path);

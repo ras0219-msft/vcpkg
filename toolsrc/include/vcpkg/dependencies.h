@@ -39,6 +39,13 @@ namespace vcpkg::Dependencies
 
     std::string nuget_package_version(const std::string& version, const std::string& abi_tag);
 
+    struct BuildAndInstallAction
+    {
+        const SourceControlFile& scf;
+        Build::BuildPackageOptions build_options;
+        Optional<fs::path> port_dir;
+    };
+
     struct InstallPlanAction : Util::MoveOnlyBase
     {
         static bool compare_by_name(const InstallPlanAction* left, const InstallPlanAction* right);
@@ -57,20 +64,18 @@ namespace vcpkg::Dependencies
                           std::vector<PackageSpec>&& dependencies);
 
         std::string displayname() const;
+        const std::string& version() const;
         std::string nuget_package_version() const;
 
         PackageSpec spec;
         Optional<Build::AbiTagAndFile> abi;
-
-        Optional<InstalledPackageView> installed_package;
-        InstallPlanType plan_type;
-        RequestType request_type;
-
-        Optional<const SourceControlFile&> source_control_file;
-        Build::BuildPackageOptions build_options;
         std::set<std::string> feature_list;
         std::vector<PackageSpec> computed_dependencies;
-        Optional<fs::path> port_dir;
+
+        InstallPlanType plan_type;
+        RequestType request_type;
+        Optional<InstalledPackageView> installed_package;
+        Optional<BuildAndInstallAction> build_action;
     };
 
     enum class RemovePlanType
