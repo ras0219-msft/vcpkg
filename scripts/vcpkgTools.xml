@@ -118,7 +118,7 @@
         <version>1.0.0</version>
         <exeRelativePath>NuGet.exe</exeRelativePath>
         <url>https://pkgs.dev.azure.com/vcpkg/_apis/public/nuget/client/CredentialProviderBundle.zip</url>
-        <sha512>10fe5d7f4e2bd91a1ff354e23de7c9d72961801f41c3b0af06c7d0c7445d6afd53f3ca34a9dfae5cadc5b69d7039148d4aedca8ab7c902dc5b14f3f546013484</sha512>
+        <sha512>f4b170f654fde45cb8874cf55bd65ee96ca4e16f303e6b39fa3ee3b10585a5cc542becd164c56ba47e897610d4cb3b9b5958973472b045d138182ad2648b349b</sha512>
         <archiveName>CredentialProviderBundle-1.0.0.zip</archiveName>
     </tool>
 </tools>
