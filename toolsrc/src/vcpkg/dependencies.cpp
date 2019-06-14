@@ -191,6 +191,25 @@ namespace vcpkg::Dependencies
         return Strings::format("%s[%s]:%s", this->spec.name(), features, this->spec.triplet());
     }
 
+    std::string InstallPlanAction::nuget_package_version() const
+    {
+        static const std::regex semver_matcher(R"(v?(\d+\.\d+)(\.(\d+))?.*)");
+
+        auto&& version = source_control_file.value_or_exit(VCPKG_LINE_INFO).core_paragraph->version;
+        std::smatch sm;
+        if (std::regex_match(version.cbegin(), version.cend(), sm, semver_matcher))
+        {
+            if (sm.size() == 2)
+                return Strings::concat(sm.str(1), ".0-", abi.value_or_exit(VCPKG_LINE_INFO).tag);
+            else if (sm.size() >= 3)
+                return Strings::concat(sm.str(1), sm.str(2), "-", abi.value_or_exit(VCPKG_LINE_INFO).tag);
+            else
+                Checks::unreachable(VCPKG_LINE_INFO);
+        }
+
+        return Strings::concat("0.0.0-", abi.value_or_exit(VCPKG_LINE_INFO).tag);
+    }
+
     bool InstallPlanAction::compare_by_name(const InstallPlanAction* left, const InstallPlanAction* right)
     {
         return left->spec.name() < right->spec.name();

@@ -714,7 +714,7 @@ namespace vcpkg::Build
             const auto nuget_archives = paths.root / "archives.nuget";
 
             const auto nuget_id = config.spec.dir();
-            const auto nuget_version = "0.0.0--" + abi_tag_and_file->tag;
+            const auto nuget_version = config.nuget_package_version();
             const auto nuget_name = Strings::concat(nuget_id, ".", nuget_version, ".nupkg");
             const auto nuget_archive_path = nuget_archives / nuget_name;
 
@@ -724,29 +724,21 @@ namespace vcpkg::Build
             auto maybe_feed = System::get_environment_variable("VCPKG_BINARYCACHING_FEED");
 
             auto restored_from_cache = false;
-
             {
-                // try to install from archives.nuget
-                if (fs.exists(nuget_archive_path))
+                const auto nupkg_in_package_dir = package_dir / (nuget_id + ".nupkg");
+                if (fs.exists(nupkg_in_package_dir))
                 {
-                    const auto nuget_exe = paths.get_tool_exe("nuget-devops");
-                    const auto install_rc =
-                        System::cmd_execute(Strings::concat(escapep(nuget_exe),
-                                                            " install ",
-                                                            nuget_id,
-                                                            " -ExcludeVersion -Version ",
-                                                            nuget_version,
-                                                            " -NoCache -DirectDownload -OutputDirectory ",
-                                                            escapep(paths.packages),
-                                                            " -Source ",
-                                                            escapep(nuget_archives),
-                                                            " -NonInteractive -PackageSaveMode nupkg"));
-                    if (install_rc == 0)
+                    if (fs.exists(nuget_archive_path))
                     {
-                        fs.remove(package_dir / (nuget_id + ".nupkg"));
-                        System::print2("Using cached binary package from Local NuGet\n");
-                        restored_from_cache = true;
+                        fs.remove(nupkg_in_package_dir);
                     }
+                    else
+                    {
+                        fs.create_directories(nuget_archives, ec);
+                        fs.rename(nupkg_in_package_dir, nuget_archive_path);
+                    }
+                    System::print2("Using unpacked NuGet package\n");
+                    restored_from_cache = true;
                 }
             }
 
@@ -763,41 +755,6 @@ namespace vcpkg::Build
                     System::print2("Using cached binary package: ", archive_path.u8string(), "\n");
                     decompress_archive(paths, config.spec, archive_path);
                     restored_from_cache = true;
-                }
-            }
-
-            if (!restored_from_cache)
-            {
-                if (auto feed = maybe_feed.get())
-                {
-                    fs.remove_all(package_dir, ec);
-
-                    // try to install from feed
-                    const auto nuget_exe = paths.get_tool_exe("nuget-devops");
-                    System::print2("Checking NuGet Feed for prebuilt package...\n");
-                    const auto install_rc = System::cmd_execute_and_capture_output(
-                        Strings::concat(escapep(nuget_exe),
-                                        " install ",
-                                        nuget_id,
-                                        " -ExcludeVersion -Version ",
-                                        nuget_version,
-                                        " -NoCache -DirectDownload -OutputDirectory ",
-                                        escapep(paths.packages),
-                                        " -Source ",
-                                        escape(*feed),
-                                        " -NonInteractive -PackageSaveMode nupkg"));
-                    if (install_rc.exit_code == 0)
-                    {
-                        std::error_code ec;
-                        fs.create_directory(nuget_archives, ec);
-                        fs.rename(package_dir / (nuget_id + ".nupkg"), nuget_archive_path);
-                        System::print2("Using cached binary package from NuGet\n");
-                        restored_from_cache = true;
-                    }
-                    else
-                    {
-                        Debug::print(install_rc.output, "\n");
-                    }
                 }
             }
 
@@ -879,6 +836,8 @@ namespace vcpkg::Build
                     }
                     else
                     {
+                        std::error_code ec;
+                        fs.create_directories(nuget_archives, ec);
                         fs.rename(buildtree_dir / Strings::concat(nuget_id, '.', nuget_version, ".nupkg"),
                                   nuget_archive_path);
 

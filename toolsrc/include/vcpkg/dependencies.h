@@ -55,6 +55,7 @@ namespace vcpkg::Dependencies
                           std::vector<PackageSpec>&& dependencies);
 
         std::string displayname() const;
+        std::string nuget_package_version() const;
 
         PackageSpec spec;
         Optional<Build::AbiTagAndFile> abi;

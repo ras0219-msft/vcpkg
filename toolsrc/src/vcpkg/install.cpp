@@ -1,7 +1,9 @@
 #include "pch.h"
 
 #include <vcpkg/base/files.h>
+#include <vcpkg/base/system.debug.h>
 #include <vcpkg/base/system.print.h>
+#include <vcpkg/base/system.process.h>
 #include <vcpkg/base/util.h>
 #include <vcpkg/build.h>
 #include <vcpkg/commands.h>
@@ -414,6 +416,84 @@ namespace vcpkg::Install
         const auto timer = Chrono::ElapsedTimer::create_started();
         size_t counter = 0;
         const size_t package_count = action_plan.size();
+
+        auto maybe_feed = System::get_environment_variable("VCPKG_BINARYCACHING_FEED");
+        auto feed = maybe_feed.get();
+
+        auto& fs = paths.get_filesystem();
+
+        if (GlobalState::g_binary_caching && feed)
+        {
+            std::string packages_config_content = R"(<?xml version="1.0" encoding="utf-8"?>
+<packages>
+)";
+            int packages_to_restore = 0;
+
+            for (auto&& action : action_plan)
+            {
+                if (!action.install_action) continue;
+                const auto& ipa = action.install_action.value_or_exit(VCPKG_LINE_INFO);
+                if (!ipa.source_control_file)
+                {
+                    // This install action represents an already installed package
+                    continue;
+                }
+
+                ++packages_to_restore;
+
+                // Purge all existing unpacked staging directories
+                auto package_dir = paths.package_dir(ipa.spec);
+                std::error_code ec;
+                fs.remove_all(package_dir, ec);
+                Checks::check_exit(
+                    VCPKG_LINE_INFO, !fs.exists(package_dir), "Unable to remove directory %s", package_dir.u8string());
+
+                // Add the package to packages.config
+                Strings::append(packages_config_content,
+                                "    <package id=\"",
+                                ipa.spec.dir(),
+                                "\" version=\"",
+                                ipa.nuget_package_version(),
+                                "\" />\n");
+            }
+
+            packages_config_content += "</packages>\n";
+
+            if (packages_to_restore > 0)
+            {
+                // Run this through nuget install
+                const auto nuget_archives = paths.root / "archives.nuget";
+
+                static auto escape = [](StringView s) { return Strings::concat('"', s, '"'); };
+                static auto escapep = [](const fs::path& p) { return escape(p.u8string()); };
+
+                const auto nuget_exe = paths.get_tool_exe("nuget-devops");
+
+                const auto packages_config_path = paths.buildtrees / "packages.config";
+                fs.write_contents(packages_config_path, packages_config_content);
+
+                System::print2("Attempting to restore packages from NuGet Feed. This can take a while. Use --debug to "
+                               "see full output.\n");
+
+                const auto cmdline = Strings::concat(escapep(nuget_exe),
+                                                     " install ",
+                                                     escapep(packages_config_path),
+                                                     " -ExcludeVersion -NoCache -DirectDownload -OutputDirectory ",
+                                                     escapep(paths.packages),
+                                                     " -Source ",
+                                                     escape(Strings::concat(nuget_archives.u8string(), ';', *feed)),
+                                                     " -NonInteractive -PackageSaveMode nupkg");
+
+                if (Debug::g_debugging)
+                {
+                    System::cmd_execute(cmdline);
+                }
+                else
+                {
+                    System::cmd_execute_and_capture_output(cmdline);
+                }
+            }
+        }
 
         for (const auto& action : action_plan)
         {
