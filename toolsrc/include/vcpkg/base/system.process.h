@@ -3,6 +3,7 @@
 #include <vcpkg/base/files.h>
 #include <vcpkg/base/zstringview.h>
 
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -40,6 +41,8 @@ namespace vcpkg::System
 #endif
 
     ExitCodeAndOutput cmd_execute_and_capture_output(const ZStringView cmd_line);
+
+    int cmd_execute_and_stream_output(const ZStringView cmd_line, std::function<void(const std::string&)> per_line_cb);
 
     void register_console_ctrl_handler();
 }

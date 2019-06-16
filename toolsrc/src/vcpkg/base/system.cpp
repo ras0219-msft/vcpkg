@@ -413,6 +413,92 @@ namespace vcpkg
         return exit_code;
     }
 
+    int System::cmd_execute_and_stream_output(const ZStringView cmd_line,
+                                              std::function<void(const std::string&)> per_line_cb)
+    {
+        auto timer = Chrono::ElapsedTimer::create_started();
+
+#if defined(_WIN32)
+        const auto actual_cmd_line = Strings::format(R"###("%s 2>&1")###", cmd_line);
+
+        Debug::print("_wpopen(", actual_cmd_line, ")\n");
+        g_ctrl_c_state.transition_to_spawn_process();
+        // Flush stdout before launching external process
+        fflush(stdout);
+        const auto pipe = _wpopen(Strings::to_utf16(actual_cmd_line).c_str(), L"r");
+        if (pipe == nullptr)
+        {
+            g_ctrl_c_state.transition_from_spawn_process();
+            return 1;
+        }
+
+        std::wstring output;
+        size_t searched_idx = 0;
+        wchar_t buf[1024];
+        while (fgetws(buf, 1024, pipe))
+        {
+            output.append(buf);
+            auto it = std::find(output.begin() + searched_idx, output.end(), L'\n');
+            if (it == output.end())
+            {
+                searched_idx = output.size();
+            }
+            else
+            {
+                auto line = Strings::to_utf8({output.begin(), it});
+                per_line_cb(line);
+                output.erase(output.begin(), it + 1);
+                searched_idx = 0;
+            }
+        }
+        if (!feof(pipe))
+        {
+            g_ctrl_c_state.transition_from_spawn_process();
+            per_line_cb(Strings::to_utf8(output));
+            return 1;
+        }
+
+        const auto ec = _pclose(pipe);
+        g_ctrl_c_state.transition_from_spawn_process();
+        per_line_cb(Strings::to_utf8(output));
+
+        Debug::print("_pclose() returned ",
+                     ec,
+                     " after ",
+                     Strings::format("%8d", static_cast<int>(timer.microseconds())),
+                     " us\n");
+        return ec;
+#else
+#error Not yet implemented
+        const auto actual_cmd_line = Strings::format(R"###(%s 2>&1)###", cmd_line);
+
+        Debug::print("popen(", actual_cmd_line, ")\n");
+        // Flush stdout before launching external process
+        fflush(stdout);
+        const auto pipe = popen(actual_cmd_line.c_str(), "r");
+        if (pipe == nullptr)
+        {
+            return {1, ""};
+        }
+        std::string output;
+        char buf[1024];
+        while (fgets(buf, 1024, pipe))
+        {
+            output.append(buf);
+        }
+        if (!feof(pipe))
+        {
+            return {1, output};
+        }
+
+        const auto ec = pclose(pipe);
+
+        Debug::print("_pclose() returned ", ec, " after ", Strings::format("%8d", (int)timer.microseconds()), " us\n");
+
+        return {ec, output};
+#endif
+    }
+
     ExitCodeAndOutput System::cmd_execute_and_capture_output(const ZStringView cmd_line)
     {
         auto timer = Chrono::ElapsedTimer::create_started();
@@ -421,8 +507,6 @@ namespace vcpkg
         const auto actual_cmd_line = Strings::format(R"###("%s 2>&1")###", cmd_line);
 
         Debug::print("_wpopen(", actual_cmd_line, ")\n");
-        std::wstring output;
-        wchar_t buf[1024];
         g_ctrl_c_state.transition_to_spawn_process();
         // Flush stdout before launching external process
         fflush(stdout);
@@ -430,8 +514,10 @@ namespace vcpkg
         if (pipe == nullptr)
         {
             g_ctrl_c_state.transition_from_spawn_process();
-            return {1, Strings::to_utf8(output.c_str())};
+            return {1, ""};
         }
+        std::wstring output;
+        wchar_t buf[1024];
         while (fgetws(buf, 1024, pipe))
         {
             output.append(buf);
@@ -445,8 +531,8 @@ namespace vcpkg
         const auto ec = _pclose(pipe);
         g_ctrl_c_state.transition_from_spawn_process();
 
-        // On Win7, output from powershell calls contain a utf-8 byte order mark in the utf-16 stream, so we strip it
-        // out if it is present. 0xEF,0xBB,0xBF is the UTF-8 byte-order mark
+        // On Win7, output from powershell calls contain a utf-8 byte order mark in the utf-16 stream, so we strip
+        // it out if it is present. 0xEF,0xBB,0xBF is the UTF-8 byte-order mark
         const wchar_t* a = output.c_str();
         while (output.size() >= 3 && a[0] == 0xEF && a[1] == 0xBB && a[2] == 0xBF)
         {
@@ -463,15 +549,15 @@ namespace vcpkg
         const auto actual_cmd_line = Strings::format(R"###(%s 2>&1)###", cmd_line);
 
         Debug::print("popen(", actual_cmd_line, ")\n");
-        std::string output;
-        char buf[1024];
         // Flush stdout before launching external process
         fflush(stdout);
         const auto pipe = popen(actual_cmd_line.c_str(), "r");
         if (pipe == nullptr)
         {
-            return {1, output};
+            return {1, ""};
         }
+        std::string output;
+        char buf[1024];
         while (fgets(buf, 1024, pipe))
         {
             output.append(buf);
@@ -608,10 +694,7 @@ namespace vcpkg
     void System::register_console_ctrl_handler() {}
 #endif
 
-    int System::get_num_logical_cores()
-    {
-        return std::thread::hardware_concurrency();
-    }
+    int System::get_num_logical_cores() { return std::thread::hardware_concurrency(); }
 }
 
 namespace vcpkg::Debug

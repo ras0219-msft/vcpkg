@@ -488,7 +488,7 @@ namespace vcpkg::Install
                                                      escapep(paths.packages),
                                                      " -Source ",
                                                      escape(Strings::concat(nuget_archives.u8string(), ';', *feed)),
-                                                     " -NonInteractive -PackageSaveMode nupkg");
+                                                     " -NonInteractive -PackageSaveMode nupkg -verbosity detailed");
 
                 if (Debug::g_debugging)
                 {
@@ -496,7 +496,25 @@ namespace vcpkg::Install
                 }
                 else
                 {
-                    System::cmd_execute_and_capture_output(cmdline);
+                    static std::regex re_adding(
+                        R"(Added package '([^'\._]+)_([^'\.]+)\.[^']+' to folder '.*' from source '(.*)'.*)");
+                    System::cmd_execute_and_stream_output(cmdline, [&](const std::string& line) {
+                        if (Strings::starts_with(line, "CredentialProvider.VSS: Getting new credentials"))
+                        {
+                            System::print2("Authenticating with feed and fetching packages.\n");
+                        }
+                        else
+                        {
+                            std::smatch sm;
+                            if (std::regex_match(line, sm, re_adding))
+                            {
+                                if (sm.str(3) == *feed)
+                                    System::print2("Used remote package ", sm.str(1), ':', sm.str(2), "...\n");
+                                else
+                                    System::print2("Used local package ", sm.str(1), ':', sm.str(2), "...\n");
+                            }
+                        }
+                    });
                 }
             }
         }
