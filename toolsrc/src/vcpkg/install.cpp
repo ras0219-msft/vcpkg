@@ -301,7 +301,7 @@ namespace vcpkg::Install
 
         if (plan_type == InstallPlanType::ALREADY_INSTALLED)
         {
-                System::printf(System::Color::success, "Package %s is already installed\n", display_name);
+            System::printf(System::Color::success, "Package %s is already installed\n", display_name);
             return BuildResult::SUCCEEDED;
         }
 
@@ -426,7 +426,7 @@ namespace vcpkg::Install
             std::string packages_config_content = R"(<?xml version="1.0" encoding="utf-8"?>
 <packages>
 )";
-            Debug::print("abc ", VCPKG_LINE_INFO, ": ", *feed,"\n");
+            Debug::print("abc ", VCPKG_LINE_INFO, ": ", *feed, "\n");
 
             int packages_to_restore = 0;
 
@@ -476,7 +476,7 @@ namespace vcpkg::Install
                 const auto nuget_exe = paths.get_tool_exe("nuget-devops");
 
                 const auto packages_config_path = paths.buildtrees / "packages.config";
-                fs.write_contents(packages_config_path, packages_config_content);
+                fs.write_contents(packages_config_path, packages_config_content, VCPKG_LINE_INFO);
 
                 System::print2("Attempting to restore packages from NuGet Feed. This can take a while. Use --debug to "
                                "see full output.\n");

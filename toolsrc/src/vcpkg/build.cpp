@@ -460,8 +460,7 @@ namespace vcpkg::Build
         if (build_action.build_options.clean_buildtrees == CleanBuildtrees::YES)
         {
             auto& fs = paths.get_filesystem();
-            const fs::path buildtrees_dir =
-                paths.buildtrees / build_action.scf.core_paragraph->name;
+            const fs::path buildtrees_dir = paths.buildtrees / build_action.scf.core_paragraph->name;
             auto buildtree_files = fs.get_files_non_recursive(buildtrees_dir);
             for (auto&& file : buildtree_files)
             {
@@ -501,7 +500,8 @@ namespace vcpkg::Build
 
         // the order of recursive_directory_iterator is undefined so save the names to sort
         std::vector<fs::path> port_files;
-        for (auto& port_file : fs::stdfs::recursive_directory_iterator(build_action.port_dir.value_or_exit(VCPKG_LINE_INFO)))
+        for (auto& port_file :
+             fs::stdfs::recursive_directory_iterator(build_action.port_dir.value_or_exit(VCPKG_LINE_INFO)))
         {
             if (fs::is_regular_file(status(port_file)))
             {
@@ -747,12 +747,12 @@ namespace vcpkg::Build
                 {
                     if (fs.exists(nuget_archive_path))
                     {
-                        fs.remove(nupkg_in_package_dir);
+                        fs.remove(nupkg_in_package_dir, VCPKG_LINE_INFO);
                     }
                     else
                     {
                         fs.create_directories(nuget_archives, ec);
-                        fs.rename(nupkg_in_package_dir, nuget_archive_path);
+                        fs.rename(nupkg_in_package_dir, nuget_archive_path, VCPKG_LINE_INFO);
                     }
                     System::print2("Using unpacked NuGet package\n");
                     restored_from_cache = true;
@@ -869,7 +869,7 @@ namespace vcpkg::Build
                     nuspec_file_content = Strings::replace_all(std::move(nuspec_file_content), "@METADATA@", metadata);
 
                     const auto nuspec_path = buildtree_dir / (nuget_id + ".nuspec");
-                    fs.write_contents(nuspec_path, nuspec_file_content);
+                    fs.write_contents(nuspec_path, nuspec_file_content, VCPKG_LINE_INFO);
 
                     const auto nuget_exe = paths.get_tool_exe("nuget-devops");
                     auto pack_rc = System::cmd_execute_and_capture_output(
@@ -890,7 +890,8 @@ namespace vcpkg::Build
                     {
                         fs.create_directories(nuget_archives, ec);
                         fs.rename(buildtree_dir / Strings::concat(nuget_id, '.', nuget_version, ".nupkg"),
-                                  nuget_archive_path);
+                                  nuget_archive_path,
+                                  VCPKG_LINE_INFO);
 
                         System::print2("Uploading package to NuGet Feed\n");
                         auto rc = System::cmd_execute_and_capture_output(
