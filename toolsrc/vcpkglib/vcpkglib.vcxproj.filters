@@ -216,6 +216,9 @@
     <ClCompile Include="..\src\vcpkg\base\system.print.cpp">
       <Filter>Source Files\vcpkg\base</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\vcpkg\base\system.jobs.cpp">
+      <Filter>Source Files\vcpkg\base</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\include\pch.h">
@@ -381,6 +384,27 @@
       <Filter>Header Files\vcpkg\base</Filter>
     </ClInclude>
     <ClInclude Include="..\include\vcpkg\base\downloads.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\stringview.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\system.debug.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\system.print.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\system.process.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\view.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\zstringview.h">
+      <Filter>Header Files\vcpkg\base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\vcpkg\base\system.jobs.h">
       <Filter>Header Files\vcpkg\base</Filter>
     </ClInclude>
   </ItemGroup>

@@ -419,15 +419,11 @@ namespace vcpkg::Install
 
         auto& fs = paths.get_filesystem();
 
-        Debug::print("abc ", VCPKG_LINE_INFO, "\n");
-
         if (GlobalState::g_binary_caching && feed)
         {
             std::string packages_config_content = R"(<?xml version="1.0" encoding="utf-8"?>
 <packages>
 )";
-            Debug::print("abc ", VCPKG_LINE_INFO, ": ", *feed, "\n");
-
             int packages_to_restore = 0;
 
             for (auto&& action : action_plan)
@@ -804,7 +800,7 @@ namespace vcpkg::Install
 
         const InstallSummary summary = perform(action_plan, keep_going, paths, status_db);
 
-        System::print2("\nTotal elapsed time: ", summary.total_elapsed_time, "\n\n");
+        System::print2("\nTotal elapsed time for install: ", summary.total_elapsed_time, "\n\n");
 
         if (keep_going == KeepGoing::YES)
         {

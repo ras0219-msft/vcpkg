@@ -7,6 +7,7 @@
 #include <vcpkg/base/optional.h>
 #include <vcpkg/base/stringliteral.h>
 #include <vcpkg/base/system.debug.h>
+#include <vcpkg/base/system.jobs.h>
 #include <vcpkg/base/system.print.h>
 #include <vcpkg/base/system.process.h>
 
@@ -893,20 +894,22 @@ namespace vcpkg::Build
                                   nuget_archive_path,
                                   VCPKG_LINE_INFO);
 
-                        System::print2("Uploading package to NuGet Feed\n");
-                        auto rc = System::cmd_execute_and_capture_output(
-                            Strings::concat(escapep(nuget_exe),
-                                            " push ",
-                                            escapep(nuget_archive_path),
-                                            " -Source ",
-                                            escape(*feed),
-                                            " -ApiKey AzureDevOps -NonInteractive -ForceEnglishOutput"));
-                        if (rc.exit_code != 0)
-                        {
-                            System::print2(System::Color::error,
-                                           "Upload to NuGet failed. Use --debug for more information.\n");
-                            Debug::print(rc.output, "\n");
-                        }
+                        System::print2("Uploading package to NuGet Feed in background.\n");
+                        auto cmdline = Strings::concat(escapep(nuget_exe),
+                                                       " push ",
+                                                       escapep(nuget_archive_path),
+                                                       " -Source ",
+                                                       escape(*feed),
+                                                       " -ApiKey AzureDevOps -NonInteractive -ForceEnglishOutput");
+                        System::Jobs::post(
+                            [cmdline]() {
+                                auto rc = System::cmd_execute_and_capture_output(cmdline);
+                                if (rc.exit_code != 0)
+                                {
+                                    Debug::print(rc.output, "\n");
+                                }
+                            },
+                            Strings::concat("Uploading ", config.spec, " to NuGet Feed"));
                     }
                 }
                 else
