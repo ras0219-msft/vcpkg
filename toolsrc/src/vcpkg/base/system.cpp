@@ -33,28 +33,21 @@ namespace vcpkg
 
             void transition_to_spawn_process() noexcept
             {
-                auto cur = m_number_of_external_processes.load();
-                do
+                int cur = 0;
+                while (!m_number_of_external_processes.compare_exchange_strong(cur, cur + 1))
                 {
-                    if (cur == INT_MIN)
-                    {
-                        // Ctrl-C was hit and is asynchronously executing on another thread.
-                        // No other processes are outstanding
-                        Checks::final_cleanup_and_exit(1);
-                    }
-                    else if (cur < 0)
+                    if (cur < 0)
                     {
                         // Ctrl-C was hit and is asynchronously executing on another thread.
                         // Some other processes are outstanding.
                         // Sleep forever -- the other process will complete and exit the program
                         while (true)
                         {
-                            Debug::print("Sleeping forever at ", VCPKG_LINE_INFO, '\n');
                             std::this_thread::sleep_for(std::chrono::seconds(10));
+                            System::print2("Waiting for child processes to exit...\n");
                         }
                     }
-
-                } while (!m_number_of_external_processes.compare_exchange_strong(cur, cur + 1));
+                }
             }
             void transition_from_spawn_process() noexcept
             {
@@ -73,8 +66,8 @@ namespace vcpkg
                     // Sleep forever -- the other process will complete and exit the program
                     while (true)
                     {
-                        Debug::print("Sleeping forever at ", VCPKG_LINE_INFO, '\n');
                         std::this_thread::sleep_for(std::chrono::seconds(10));
+                        System::print2("Waiting for child processes to exit...\n");
                     }
                 }
             }
