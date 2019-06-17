@@ -352,7 +352,7 @@ CMake projects should use: "-DCMAKE_TOOLCHAIN_FILE=%s"
                                                      buildsystems_dir.u8string(),
                                                      nuspec_file_path.u8string());
 
-        const int exit_code = System::cmd_execute_clean(cmd_line);
+        const int exit_code = System::cmd_execute(cmd_line, System::get_clean_environment());
 
         const fs::path nuget_package = buildsystems_dir / Strings::format("%s.%s.nupkg", nuget_id, nupkg_version);
         Checks::check_exit(

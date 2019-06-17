@@ -154,7 +154,7 @@ namespace vcpkg::Export
                                               output_dir.u8string(),
                                               nuspec_file_path.u8string());
 
-        const int exit_code = System::cmd_execute_clean(cmd_line);
+        const int exit_code = System::cmd_execute(cmd_line, System::get_clean_environment());
         Checks::check_exit(VCPKG_LINE_INFO, exit_code == 0, "Error: NuGet package creation failed");
 
         const fs::path output_path = output_dir / (nuget_id + "." + nuget_version + ".nupkg");
@@ -211,7 +211,7 @@ namespace vcpkg::Export
                                               format.cmake_option(),
                                               raw_exported_dir.u8string());
 
-        const int exit_code = System::cmd_execute_clean(cmd_line);
+        const int exit_code = System::cmd_execute(cmd_line, System::get_clean_environment());
         Checks::check_exit(
             VCPKG_LINE_INFO, exit_code == 0, "Error: %s creation failed", exported_archive_path.generic_string());
         return exported_archive_path;

@@ -99,7 +99,7 @@ namespace vcpkg::Commands::PortsDiff
                             checkout_this_dir,
                             ".vcpkg-root",
                             git_exe.u8string());
-        System::cmd_execute_clean(cmd);
+        System::cmd_execute(cmd, System::get_clean_environment());
         const auto all_ports =
             Paragraphs::load_all_ports(paths.get_filesystem(), temp_checkout_path / ports_dir_name_as_string);
         std::map<std::string, VersionT> names_and_versions;

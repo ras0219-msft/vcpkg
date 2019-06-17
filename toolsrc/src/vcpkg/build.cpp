@@ -400,18 +400,18 @@ namespace vcpkg::Build
         const std::string cmd_launch_cmake = System::make_cmake_cmd(cmake_exe_path, paths.ports_cmake, variables);
 
         auto command = make_build_env_cmd(pre_build_info, toolset);
-        if (!command.empty())
-        {
-#ifdef _WIN32
-            command.append(" & ");
+
+#if defined(_WIN32)
+        static vcpkg::Cache<std::string, System::Environment> env_cache;
+        const auto& env = env_cache.get_lazy(
+            command, [&] { return System::cmd_execute_modify_env(command, System::get_clean_environment()); });
 #else
-            command.append(" && ");
+        System::Environment env;
 #endif
-        }
-        command.append(cmd_launch_cmake);
+
         const auto timer = Chrono::ElapsedTimer::create_started();
 
-        const int return_code = System::cmd_execute_clean(command);
+        const int return_code = System::cmd_execute(cmd_launch_cmake, env);
         const auto buildtimeus = timer.microseconds();
         const auto spec_string = config.spec.to_string();
 
@@ -645,11 +645,13 @@ namespace vcpkg::Build
 #if defined(_WIN32)
         auto&& seven_zip_exe = paths.get_tool_exe(Tools::SEVEN_ZIP);
 
-        System::cmd_execute_clean(Strings::format(
-            R"("%s" x "%s" -o"%s" -y >nul)", seven_zip_exe.u8string(), archive_path.u8string(), pkg_path.u8string()));
+        System::cmd_execute(Strings::format(R"("%s" x "%s" -o"%s" -y >nul)",
+                                            seven_zip_exe.u8string(),
+                                            archive_path.u8string(),
+                                            pkg_path.u8string()),
+                            System::get_clean_environment());
 #else
-        System::cmd_execute_clean(
-            Strings::format(R"(unzip -qq "%s" "-d%s")", archive_path.u8string(), pkg_path.u8string()));
+        System::cmd_execute(Strings::format(R"(unzip -qq "%s" "-d%s")", archive_path.u8string(), pkg_path.u8string()));
 #endif
     }
 
@@ -666,10 +668,12 @@ namespace vcpkg::Build
 #if defined(_WIN32)
         auto&& seven_zip_exe = paths.get_tool_exe(Tools::SEVEN_ZIP);
 
-        System::cmd_execute_clean(Strings::format(
-            R"("%s" a "%s" "%s\*" >nul)", seven_zip_exe.u8string(), destination.u8string(), source.u8string()));
+        System::cmd_execute(
+            Strings::format(
+                R"("%s" a "%s" "%s\*" >nul)", seven_zip_exe.u8string(), destination.u8string(), source.u8string()),
+            System::get_clean_environment());
 #else
-        System::cmd_execute_clean(
+        System::cmd_execute(
             Strings::format(R"(cd '%s' && zip --quiet -r '%s' *)", source.u8string(), destination.u8string()));
 #endif
     }

@@ -204,9 +204,9 @@ namespace vcpkg
             R"("%s" %s -P "%s")", cmake_exe.u8string(), cmd_cmake_pass_variables, cmake_script.generic_u8string());
     }
 
-#if defined(_WIN32)
-    static std::wstring compute_clean_environment(const std::unordered_map<std::string, std::string>& extra_env)
+    Environment System::get_environment(const std::unordered_map<std::string, std::string>& extra_env)
     {
+#if defined(_WIN32)
         static const std::string SYSTEM_ROOT = get_environment_variable("SystemRoot").value_or_exit(VCPKG_LINE_INFO);
         static const std::string SYSTEM_32 = SYSTEM_ROOT + R"(\system32)";
         std::string new_path = Strings::format(
@@ -310,40 +310,147 @@ namespace vcpkg
             env_cstr.push_back(L'\0');
         }
 
-        return env_cstr;
-    }
+        return {env_cstr};
+#else
+        return {};
 #endif
+    }
+
+    const Environment& System::get_clean_environment()
+    {
+        static const Environment clean_env = get_environment({});
+        return clean_env;
+    }
 
 #if defined(_WIN32)
+    struct ProcessInfo
+    {
+        constexpr ProcessInfo() : proc_info{} {}
+
+        unsigned int wait_and_close_handles()
+        {
+            CloseHandle(proc_info.hThread);
+
+            const DWORD result = WaitForSingleObject(proc_info.hProcess, INFINITE);
+            Checks::check_exit(VCPKG_LINE_INFO, result != WAIT_FAILED, "WaitForSingleObject failed");
+
+            DWORD exit_code = 0;
+            GetExitCodeProcess(proc_info.hProcess, &exit_code);
+
+            CloseHandle(proc_info.hProcess);
+
+            return exit_code;
+        }
+
+        void close_handles()
+        {
+            CloseHandle(proc_info.hThread);
+            CloseHandle(proc_info.hProcess);
+        }
+
+        PROCESS_INFORMATION proc_info;
+    };
+
     /// <param name="maybe_environment">If non-null, an environment block to use for the new process. If null, the
     /// new process will inherit the current environment.</param>
-    static void windows_create_process(const StringView cmd_line,
-                                       const wchar_t* environment_block,
-                                       PROCESS_INFORMATION& process_info,
-                                       DWORD dwCreationFlags) noexcept
+    static ProcessInfo windows_create_process(const StringView cmd_line,
+                                              const Environment& env,
+                                              DWORD dwCreationFlags,
+                                              STARTUPINFOW& startup_info) noexcept
+    {
+        ProcessInfo process_info;
+
+        // Wrapping the command in a single set of quotes causes cmd.exe to correctly execute
+        const std::string actual_cmd_line = Strings::format(R"###(cmd.exe /c "%s")###", cmd_line);
+        Debug::print("CreateProcessW(", actual_cmd_line, ")\n");
+
+        // Flush stdout before launching external process
+        fflush(nullptr);
+
+        bool succeeded = TRUE == CreateProcessW(nullptr,
+                                                Strings::to_utf16(actual_cmd_line).data(),
+                                                nullptr,
+                                                nullptr,
+                                                TRUE,
+                                                IDLE_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | dwCreationFlags,
+                                                (void*)(env.m_env_data.empty() ? nullptr : env.m_env_data.data()),
+                                                nullptr,
+                                                &startup_info,
+                                                &process_info.proc_info);
+
+        Checks::check_exit(VCPKG_LINE_INFO, succeeded, "Process creation failed with error code: %lu", GetLastError());
+
+        return process_info;
+    }
+
+    static ProcessInfo windows_create_process(const StringView cmd_line,
+                                              const Environment& env,
+                                              DWORD dwCreationFlags) noexcept
     {
         STARTUPINFOW startup_info;
         memset(&startup_info, 0, sizeof(STARTUPINFOW));
         startup_info.cb = sizeof(STARTUPINFOW);
 
-        // Flush stdout before launching external process
-        fflush(nullptr);
+        return windows_create_process(cmd_line, env, dwCreationFlags, startup_info);
+    }
 
-        // Wrapping the command in a single set of quotes causes cmd.exe to correctly execute
-        const std::string actual_cmd_line = Strings::format(R"###(cmd.exe /c "%s")###", cmd_line);
-        Debug::print("CreateProcessW(", actual_cmd_line, ")\n");
-        bool succeeded = TRUE == CreateProcessW(nullptr,
-                                                Strings::to_utf16(actual_cmd_line).data(),
-                                                nullptr,
-                                                nullptr,
-                                                FALSE,
-                                                IDLE_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | dwCreationFlags,
-                                                (void*)environment_block,
-                                                nullptr,
-                                                &startup_info,
-                                                &process_info);
+    struct ProcessInfoAndPipes
+    {
+        ProcessInfo proc_info;
+        HANDLE child_stdin = 0;
+        HANDLE child_stdout = 0;
 
-        Checks::check_exit(VCPKG_LINE_INFO, succeeded, "Process creation failed with error code: %lu", GetLastError());
+        template<class Function>
+        int wait_and_stream_output(Function&& f)
+        {
+            CloseHandle(child_stdin);
+
+            unsigned long bytes_read = 0;
+            char buf[1024];
+            while (ReadFile(child_stdout, (void*)buf, sizeof(buf), &bytes_read, nullptr) && bytes_read > 0)
+            {
+                f(StringView{buf, static_cast<size_t>(bytes_read)});
+            }
+
+            CloseHandle(child_stdout);
+
+            return proc_info.wait_and_close_handles();
+        }
+    };
+
+    static ProcessInfoAndPipes windows_create_process_redirect(const StringView cmd_line,
+                                                               const Environment& env,
+                                                               DWORD dwCreationFlags) noexcept
+    {
+        ProcessInfoAndPipes ret;
+
+        STARTUPINFOW startup_info;
+        memset(&startup_info, 0, sizeof(STARTUPINFOW));
+        startup_info.cb = sizeof(STARTUPINFOW);
+        startup_info.dwFlags |= STARTF_USESTDHANDLES;
+
+        SECURITY_ATTRIBUTES saAttr;
+        memset(&saAttr, 0, sizeof(SECURITY_ATTRIBUTES));
+        saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+        saAttr.bInheritHandle = TRUE;
+        saAttr.lpSecurityDescriptor = NULL;
+
+        // Create a pipe for the child process's STDOUT.
+        if (!CreatePipe(&ret.child_stdout, &startup_info.hStdOutput, &saAttr, 0)) Checks::exit_fail(VCPKG_LINE_INFO);
+        // Ensure the read handle to the pipe for STDOUT is not inherited.
+        if (!SetHandleInformation(ret.child_stdout, HANDLE_FLAG_INHERIT, 0)) Checks::exit_fail(VCPKG_LINE_INFO);
+        // Create a pipe for the child process's STDIN.
+        if (!CreatePipe(&startup_info.hStdInput, &ret.child_stdin, &saAttr, 0)) Checks::exit_fail(VCPKG_LINE_INFO);
+        // Ensure the write handle to the pipe for STDIN is not inherited.
+        if (!SetHandleInformation(ret.child_stdin, HANDLE_FLAG_INHERIT, 0)) Checks::exit_fail(VCPKG_LINE_INFO);
+        startup_info.hStdError = startup_info.hStdOutput;
+
+        ret.proc_info = windows_create_process(cmd_line, env, dwCreationFlags, startup_info);
+
+        CloseHandle(startup_info.hStdInput);
+        CloseHandle(startup_info.hStdOutput);
+
+        return ret;
     }
 #endif
 
@@ -352,216 +459,113 @@ namespace vcpkg
     {
         auto timer = Chrono::ElapsedTimer::create_started();
 
-        PROCESS_INFORMATION process_info;
-        memset(&process_info, 0, sizeof(PROCESS_INFORMATION));
+        auto process_info = windows_create_process(cmd_line, {}, DETACHED_PROCESS);
+        process_info.close_handles();
 
-        windows_create_process(cmd_line, nullptr, process_info, DETACHED_PROCESS);
+        Debug::print("cmd_execute_no_wait() took ", static_cast<int>(timer.microseconds()), " us\n");
+    }
 
-        CloseHandle(process_info.hThread);
-        CloseHandle(process_info.hProcess);
+    Environment System::cmd_execute_modify_env(const ZStringView cmd_line, const Environment& env)
+    {
+        static StringLiteral magic_string = "cdARN4xjKueKScMy9C6H";
 
-        Debug::print("CreateProcessW() took ", static_cast<int>(timer.microseconds()), " us\n");
+        auto actual_cmd_line = Strings::concat(cmd_line, " & echo ", magic_string, "& set");
+
+        // This is a hack because vcvarsall.bat can call powershell, which resets the console fonts
+        CONSOLE_FONT_INFOEX con_font_info = {sizeof(CONSOLE_FONT_INFOEX)};
+        auto b = GetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &con_font_info);
+        auto rc_output = cmd_execute_and_capture_output(actual_cmd_line, env);
+        if (b) SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &con_font_info);
+
+        Checks::check_exit(VCPKG_LINE_INFO, rc_output.exit_code == 0);
+        auto it = Strings::search(rc_output.output, Strings::concat(magic_string, "\r\n"));
+        const auto e = static_cast<const char*>(rc_output.output.data()) + rc_output.output.size();
+        Checks::check_exit(VCPKG_LINE_INFO, it != e);
+        it += magic_string.size() + 2;
+
+        std::wstring out_env;
+
+        while (1)
+        {
+            auto eq = std::find(it, e, '=');
+            if (eq == e) break;
+            StringView varname(it, eq);
+            auto nl = std::find(eq + 1, e, '\r');
+            if (nl == e) break;
+            StringView value(eq + 1, nl);
+
+            out_env.append(Strings::to_utf16(Strings::concat(varname, '=', value)));
+            out_env.push_back(L'\0');
+
+            it = nl + 1;
+            if (it != e && *it == '\n') ++it;
+        }
+
+        return {std::move(out_env)};
     }
 #endif
 
-    int System::cmd_execute_clean(const ZStringView cmd_line,
-                                  const std::unordered_map<std::string, std::string>& extra_env)
+    int System::cmd_execute(const ZStringView cmd_line, const Environment& env)
     {
         auto timer = Chrono::ElapsedTimer::create_started();
 #if defined(_WIN32)
-
-        PROCESS_INFORMATION process_info;
-        memset(&process_info, 0, sizeof(PROCESS_INFORMATION));
-
+        using vcpkg::g_ctrl_c_state;
         g_ctrl_c_state.transition_to_spawn_process();
-        auto clean_env = compute_clean_environment(extra_env);
-        windows_create_process(cmd_line, clean_env.data(), process_info, NULL);
-
-        CloseHandle(process_info.hThread);
-
-        const DWORD result = WaitForSingleObject(process_info.hProcess, INFINITE);
+        auto proc_info = windows_create_process(cmd_line, env, NULL);
+        auto exit_code = static_cast<int>(proc_info.wait_and_close_handles());
         g_ctrl_c_state.transition_from_spawn_process();
-        Checks::check_exit(VCPKG_LINE_INFO, result != WAIT_FAILED, "WaitForSingleObject failed");
 
-        DWORD exit_code = 0;
-        GetExitCodeProcess(process_info.hProcess, &exit_code);
-
-        CloseHandle(process_info.hProcess);
-
-        Debug::print(
-            "CreateProcessW() returned ", exit_code, " after ", static_cast<int>(timer.microseconds()), " us\n");
-        return static_cast<int>(exit_code);
+        Debug::print("cmd_execute() returned ", exit_code, " after ", static_cast<int>(timer.microseconds()), " us\n");
 #else
         Debug::print("system(", cmd_line, ")\n");
         fflush(nullptr);
-        int rc = system(cmd_line.c_str());
+        int exit_code = system(cmd_line.c_str());
         Debug::print("system() returned ", rc, " after ", static_cast<int>(timer.microseconds()), " us\n");
-        return rc;
-#endif
-    }
-
-    int System::cmd_execute(const ZStringView cmd_line)
-    {
-        // Flush stdout before launching external process
-        fflush(nullptr);
-
-        auto timer = Chrono::ElapsedTimer::create_started();
-#if defined(_WIN32)
-        // We are wrap the command line in quotes to cause cmd.exe to correctly process it
-        auto actual_cmd_line = Strings::concat('"', cmd_line, '"');
-        Debug::print("_wsystem(", actual_cmd_line, ")\n");
-        g_ctrl_c_state.transition_to_spawn_process();
-        const int exit_code = _wsystem(Strings::to_utf16(actual_cmd_line).c_str());
-        g_ctrl_c_state.transition_from_spawn_process();
-        Debug::print("_wsystem() returned ",
-                     exit_code,
-                     " after ",
-                     Strings::format("%8d", static_cast<int>(timer.microseconds())),
-                     " us\n");
-#else
-        Debug::print("_system(", cmd_line, ")\n");
-        const int exit_code = system(cmd_line.c_str());
-        Debug::print("_system() returned ",
-                     exit_code,
-                     " after ",
-                     Strings::format("%8d", static_cast<int>(timer.microseconds())),
-                     " us\n");
 #endif
         return exit_code;
     }
 
-    int System::cmd_execute_and_stream_output(const ZStringView cmd_line,
-                                              std::function<void(const std::string&)> per_line_cb)
+    int System::cmd_execute_and_stream_lines(const ZStringView cmd_line,
+                                             std::function<void(const std::string&)> per_line_cb,
+                                             const Environment& env)
     {
-        auto timer = Chrono::ElapsedTimer::create_started();
+        std::string buf;
 
-#if defined(_WIN32)
-        const auto actual_cmd_line = Strings::format(R"###("%s 2>&1")###", cmd_line);
+        auto rc = cmd_execute_and_stream_data(
+            cmd_line,
+            [&](StringView sv) {
+                auto prev_size = buf.size();
+                Strings::append(buf, sv);
 
-        Debug::print("_wpopen(", actual_cmd_line, ")\n");
-        g_ctrl_c_state.transition_to_spawn_process();
-        // Flush stdout before launching external process
-        fflush(stdout);
-        const auto pipe = _wpopen(Strings::to_utf16(actual_cmd_line).c_str(), L"r");
-        if (pipe == nullptr)
-        {
-            g_ctrl_c_state.transition_from_spawn_process();
-            return 1;
-        }
+                auto it = std::find(buf.begin() + prev_size, buf.end(), '\n');
+                while (it != buf.end())
+                {
+                    std::string s(buf.begin(), it);
+                    per_line_cb(s);
+                    buf.erase(buf.begin(), it + 1);
+                    it = std::find(buf.begin(), buf.end(), '\n');
+                }
+            },
+            env);
 
-        std::wstring output;
-        size_t searched_idx = 0;
-        wchar_t buf[1024];
-        while (fgetws(buf, 1024, pipe))
-        {
-            output.append(buf);
-            auto it = std::find(output.begin() + searched_idx, output.end(), L'\n');
-            if (it == output.end())
-            {
-                searched_idx = output.size();
-            }
-            else
-            {
-                auto line = Strings::to_utf8({output.begin(), it});
-                per_line_cb(line);
-                output.erase(output.begin(), it + 1);
-                searched_idx = 0;
-            }
-        }
-        if (!feof(pipe))
-        {
-            g_ctrl_c_state.transition_from_spawn_process();
-            per_line_cb(Strings::to_utf8(output));
-            return 1;
-        }
-
-        const auto ec = _pclose(pipe);
-        g_ctrl_c_state.transition_from_spawn_process();
-        per_line_cb(Strings::to_utf8(output));
-
-        Debug::print("_pclose() returned ",
-                     ec,
-                     " after ",
-                     Strings::format("%8d", static_cast<int>(timer.microseconds())),
-                     " us\n");
-        return ec;
-#else
-#error Not yet implemented
-        const auto actual_cmd_line = Strings::format(R"###(%s 2>&1)###", cmd_line);
-
-        Debug::print("popen(", actual_cmd_line, ")\n");
-        // Flush stdout before launching external process
-        fflush(stdout);
-        const auto pipe = popen(actual_cmd_line.c_str(), "r");
-        if (pipe == nullptr)
-        {
-            return {1, ""};
-        }
-        std::string output;
-        char buf[1024];
-        while (fgets(buf, 1024, pipe))
-        {
-            output.append(buf);
-        }
-        if (!feof(pipe))
-        {
-            return {1, output};
-        }
-
-        const auto ec = pclose(pipe);
-
-        Debug::print("_pclose() returned ", ec, " after ", Strings::format("%8d", (int)timer.microseconds()), " us\n");
-
-        return {ec, output};
-#endif
+        per_line_cb(buf);
+        return rc;
     }
 
-    ExitCodeAndOutput System::cmd_execute_and_capture_output(const ZStringView cmd_line)
+    int System::cmd_execute_and_stream_data(const ZStringView cmd_line,
+                                            std::function<void(StringView)> data_cb,
+                                            const Environment& env)
     {
         auto timer = Chrono::ElapsedTimer::create_started();
 
 #if defined(_WIN32)
-        const auto actual_cmd_line = Strings::format(R"###("%s 2>&1")###", cmd_line);
+        using vcpkg::g_ctrl_c_state;
+        const auto redirect_cmd_line = Strings::format("%s 2>&1", cmd_line);
 
-        Debug::print("_wpopen(", actual_cmd_line, ")\n");
         g_ctrl_c_state.transition_to_spawn_process();
-        // Flush stdout before launching external process
-        fflush(stdout);
-        const auto pipe = _wpopen(Strings::to_utf16(actual_cmd_line).c_str(), L"r");
-        if (pipe == nullptr)
-        {
-            g_ctrl_c_state.transition_from_spawn_process();
-            return {1, ""};
-        }
-        std::wstring output;
-        wchar_t buf[1024];
-        while (fgetws(buf, 1024, pipe))
-        {
-            output.append(buf);
-        }
-        if (!feof(pipe))
-        {
-            g_ctrl_c_state.transition_from_spawn_process();
-            return {1, Strings::to_utf8(output.c_str())};
-        }
-
-        const auto ec = _pclose(pipe);
+        auto proc_info = windows_create_process_redirect(redirect_cmd_line, env, NULL);
+        auto exit_code = proc_info.wait_and_stream_output(data_cb);
         g_ctrl_c_state.transition_from_spawn_process();
-
-        // On Win7, output from powershell calls contain a utf-8 byte order mark in the utf-16 stream, so we strip
-        // it out if it is present. 0xEF,0xBB,0xBF is the UTF-8 byte-order mark
-        const wchar_t* a = output.c_str();
-        while (output.size() >= 3 && a[0] == 0xEF && a[1] == 0xBB && a[2] == 0xBF)
-        {
-            output.erase(0, 3);
-        }
-
-        Debug::print("_pclose() returned ",
-                     ec,
-                     " after ",
-                     Strings::format("%8d", static_cast<int>(timer.microseconds())),
-                     " us\n");
-        return {ec, Strings::to_utf8(output.c_str())};
 #else
         const auto actual_cmd_line = Strings::format(R"###(%s 2>&1)###", cmd_line);
 
@@ -571,25 +575,36 @@ namespace vcpkg
         const auto pipe = popen(actual_cmd_line.c_str(), "r");
         if (pipe == nullptr)
         {
-            return {1, ""};
+            return 1;
         }
-        std::string output;
         char buf[1024];
         while (fgets(buf, 1024, pipe))
         {
-            output.append(buf);
+            data_cb(StringView{buf, strlen(buf)});
         }
+
         if (!feof(pipe))
         {
-            return {1, output};
+            return 1;
         }
 
-        const auto ec = pclose(pipe);
-
-        Debug::print("_pclose() returned ", ec, " after ", Strings::format("%8d", (int)timer.microseconds()), " us\n");
-
-        return {ec, output};
+        const auto exit_code = pclose(pipe);
 #endif
+        Debug::print("cmd_execute_and_stream_data() returned ",
+                     exit_code,
+                     " after ",
+                     Strings::format("%8d", static_cast<int>(timer.microseconds())),
+                     " us\n");
+
+        return exit_code;
+    }
+
+    ExitCodeAndOutput System::cmd_execute_and_capture_output(const ZStringView cmd_line, const Environment& env)
+    {
+        std::string output;
+        auto rc = cmd_execute_and_stream_data(
+            cmd_line, [&](StringView sv) { Strings::append(output, sv); }, env);
+        return {rc, std::move(output)};
     }
 
     Optional<std::string> System::get_environment_variable(ZStringView varname) noexcept

@@ -449,7 +449,7 @@ namespace vcpkg::Metrics
             R"((curl "https://dc.services.visualstudio.com/v2/track" -H "Content-Type: application/json" -X POST --data '@%s' >/dev/null 2>&1; rm '%s') &)",
             escaped_path,
             escaped_path);
-        System::cmd_execute_clean(cmd_line);
+        System::cmd_execute(cmd_line);
 #endif
     }
 }

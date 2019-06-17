@@ -494,7 +494,7 @@ namespace vcpkg::Install
                 {
                     static std::regex re_adding(
                         R"(Added package '([^'\._]+)_([^'\.]+)\.[^']+' to folder '.*' from source '(.*)'.*)");
-                    System::cmd_execute_and_stream_output(cmdline, [&](const std::string& line) {
+                    System::cmd_execute_and_stream_lines(cmdline, [&](const std::string& line) {
                         if (Strings::starts_with(line, "CredentialProvider.VSS: Getting new credentials"))
                         {
                             System::print2("Authenticating with feed and fetching packages.\n");

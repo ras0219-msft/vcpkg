@@ -365,7 +365,7 @@ namespace vcpkg::Export::IFW
                                               packages_dir.u8string(),
                                               repository_dir.u8string());
 
-        const int exit_code = System::cmd_execute_clean(cmd_line);
+        const int exit_code = System::cmd_execute(cmd_line, System::get_clean_environment());
         Checks::check_exit(VCPKG_LINE_INFO, exit_code == 0, "Error: IFW repository generating failed");
 
         System::printf(
@@ -402,7 +402,7 @@ namespace vcpkg::Export::IFW
                                        installer_file.u8string());
         }
 
-        const int exit_code = System::cmd_execute_clean(cmd_line);
+        const int exit_code = System::cmd_execute(cmd_line, System::get_clean_environment());
         Checks::check_exit(VCPKG_LINE_INFO, exit_code == 0, "Error: IFW installer generating failed");
 
         System::printf(System::Color::success, "Generating installer %s... done.\n", installer_file.generic_u8string());
