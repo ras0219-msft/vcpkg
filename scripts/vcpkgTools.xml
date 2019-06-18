@@ -121,4 +121,11 @@
         <sha512>f4b170f654fde45cb8874cf55bd65ee96ca4e16f303e6b39fa3ee3b10585a5cc542becd164c56ba47e897610d4cb3b9b5958973472b045d138182ad2648b349b</sha512>
         <archiveName>CredentialProviderBundle-1.0.0.zip</archiveName>
     </tool>
+    <tool name="powershell" os="windows">
+        <version>6.2.1</version>
+        <exeRelativePath>pwsh.exe</exeRelativePath>
+        <url>https://github.com/PowerShell/PowerShell/releases/download/v6.2.1/PowerShell-6.2.1-win-x86.zip</url>
+        <sha512>ab1effc926b000a6adc12198a1886514ec203621a53b0cd7ec1cd9a8225dccda7e857feaabcfba4004bea73129b986abaad777c4573f44e0af70411226ce08b0</sha512>
+        <archiveName>PowerShell-6.2.1-win-x86.zip</archiveName>
+    </tool>
 </tools>

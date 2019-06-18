@@ -368,6 +368,11 @@ namespace vcpkg::Build
 
         const fs::path& cmake_exe_path = paths.get_tool_exe(Tools::CMAKE);
         const fs::path& git_exe_path = paths.get_tool_exe(Tools::GIT);
+        const fs::path& powershell_exe_path = paths.get_tool_exe("powershell");
+        if (!fs.exists(powershell_exe_path.parent_path() / "powershell.exe"))
+        {
+            fs.copy(powershell_exe_path, powershell_exe_path.parent_path() / "powershell.exe", fs::copy_options::none);
+        }
 
         std::string all_features;
         for (auto& feature : scf.feature_paragraphs)
@@ -402,9 +407,11 @@ namespace vcpkg::Build
         auto command = make_build_env_cmd(pre_build_info, toolset);
 
 #if defined(_WIN32)
+        static const auto env_with_powershell =
+            System::get_environment({}, powershell_exe_path.parent_path().u8string() + ";");
         static vcpkg::Cache<std::string, System::Environment> env_cache;
-        const auto& env = env_cache.get_lazy(
-            command, [&] { return System::cmd_execute_modify_env(command, System::get_clean_environment()); });
+        const auto& env =
+            env_cache.get_lazy(command, [&] { return System::cmd_execute_modify_env(command, env_with_powershell); });
 #else
         System::Environment env;
 #endif

@@ -204,13 +204,18 @@ namespace vcpkg
             R"("%s" %s -P "%s")", cmake_exe.u8string(), cmd_cmake_pass_variables, cmake_script.generic_u8string());
     }
 
-    Environment System::get_environment(const std::unordered_map<std::string, std::string>& extra_env)
+    Environment System::get_environment(const std::unordered_map<std::string, std::string>& extra_env,
+                                        const std::string& prepend_to_path)
     {
 #if defined(_WIN32)
         static const std::string SYSTEM_ROOT = get_environment_variable("SystemRoot").value_or_exit(VCPKG_LINE_INFO);
         static const std::string SYSTEM_32 = SYSTEM_ROOT + R"(\system32)";
-        std::string new_path = Strings::format(
-            R"(Path=%s;%s;%s\Wbem;%s\WindowsPowerShell\v1.0\)", SYSTEM_32, SYSTEM_ROOT, SYSTEM_32, SYSTEM_32);
+        std::string new_path = Strings::format(R"(Path=%s%s;%s;%s\Wbem;%s\WindowsPowerShell\v1.0\)",
+                                               prepend_to_path,
+                                               SYSTEM_32,
+                                               SYSTEM_ROOT,
+                                               SYSTEM_32,
+                                               SYSTEM_32);
 
         std::vector<std::wstring> env_wstrings = {
             L"ALLUSERSPROFILE",
@@ -471,12 +476,7 @@ namespace vcpkg
 
         auto actual_cmd_line = Strings::concat(cmd_line, " & echo ", magic_string, "& set");
 
-        // This is a hack because vcvarsall.bat can call powershell, which resets the console fonts
-        CONSOLE_FONT_INFOEX con_font_info = {sizeof(CONSOLE_FONT_INFOEX)};
-        auto b = GetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &con_font_info);
         auto rc_output = cmd_execute_and_capture_output(actual_cmd_line, env);
-        if (b) SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &con_font_info);
-
         Checks::check_exit(VCPKG_LINE_INFO, rc_output.exit_code == 0);
         auto it = Strings::search(rc_output.output, Strings::concat(magic_string, "\r\n"));
         const auto e = static_cast<const char*>(rc_output.output.data()) + rc_output.output.size();

@@ -39,7 +39,8 @@ namespace vcpkg::System
     };
 
     const Environment& get_clean_environment();
-    Environment get_environment(const std::unordered_map<std::string, std::string>& extra_env);
+    Environment get_environment(const std::unordered_map<std::string, std::string>& extra_env,
+                                const std::string& prepend_to_path = {});
 
     int cmd_execute(const ZStringView cmd_line, const Environment& env = {});
 
