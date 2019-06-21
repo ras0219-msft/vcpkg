@@ -121,6 +121,13 @@
         <sha512>IGNORE_SHA</sha512>
         <archiveName>CredentialProviderBundle-1.0.0.zip</archiveName>
     </tool>
+    <tool name="nuget-credentials" os="windows">
+        <version>0.1.17</version>
+        <exeRelativePath>plugins\netfx\CredentialProvider.Microsoft</exeRelativePath>
+        <url>https://github.com/microsoft/artifacts-credprovider/releases/download/0.1.17/Microsoft.NuGet.CredentialProvider.zip</url>
+        <sha512>4a51c1cbe26c210671bb913ca432feb4142a98eb6a8c0b7cfd050a58b863b4f7696a1a237bc802ef68b38cd22981f2ae2022f45541c620f55edbcc8b999f8ea5</sha512>
+        <archiveName>Microsoft.NuGet.CredentialProvider.0.1.17.zip</archiveName>
+    </tool>
     <tool name="powershell" os="windows">
         <version>6.2.1</version>
         <exeRelativePath>pwsh.exe</exeRelativePath>
