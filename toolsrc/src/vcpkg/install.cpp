@@ -477,14 +477,14 @@ namespace vcpkg::Install
                 System::print2("Attempting to restore packages from NuGet Feed. This can take a while. Use --debug to "
                                "see full output.\n");
 
-                const auto cmdline = Strings::concat(escapep(nuget_exe),
-                                                     " install ",
-                                                     escapep(packages_config_path),
-                                                     " -ExcludeVersion -NoCache -DirectDownload -OutputDirectory ",
-                                                     escapep(paths.packages),
-                                                     " -Source ",
-                                                     escape(Strings::concat(nuget_archives.u8string(), ';', *feed)),
-                                                     " -NonInteractive -PackageSaveMode nupkg -verbosity detailed");
+                auto cmdline = Strings::concat(escapep(nuget_exe),
+                                               " install ",
+                                               escapep(packages_config_path),
+                                               " -ExcludeVersion -NoCache -DirectDownload -OutputDirectory ",
+                                               escapep(paths.packages),
+                                               " -Source ",
+                                               escape(Strings::concat(nuget_archives.u8string(), ';', *feed)),
+                                               " -NonInteractive -PackageSaveMode nupkg -verbosity detailed");
 
 #if defined(_WIN32)
                 const auto in_azure_pipelines = System::get_environment_variable("TF_BUILD");
@@ -492,7 +492,7 @@ namespace vcpkg::Install
                 {
                     // Note: this actually returns a path to the directory, not the executable.
                     const auto credentialprovider_teambuild = paths.get_tool_exe("nuget-credentials-teambuild");
-                    Strings::concat(
+                    cmdline = Strings::concat(
                         "set NUGET_CREDENTIALPROVIDERS_PATH=", credentialprovider_teambuild.u8string(), '&', cmdline);
                 }
 #endif
