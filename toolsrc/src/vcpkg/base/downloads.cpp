@@ -127,6 +127,8 @@ namespace vcpkg::Downloads
                                      const fs::path& path,
                                      const std::string& sha512)
     {
+        // <HACK: Special keyword to ignore the SHA512 of the download.>
+        if (sha512 == "IGNORE_SHA") return;
         std::string actual_hash = vcpkg::Hash::get_file_hash(fs, path, "SHA512");
 
         // <HACK to handle NuGet.org changing nupkg hashes.>
