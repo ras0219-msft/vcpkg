@@ -486,6 +486,17 @@ namespace vcpkg::Install
                                                      escape(Strings::concat(nuget_archives.u8string(), ';', *feed)),
                                                      " -NonInteractive -PackageSaveMode nupkg -verbosity detailed");
 
+#if defined(_WIN32)
+                const auto in_azure_pipelines = System::get_environment_variable("TF_BUILD");
+                if (in_azure_pipelines.has_value())
+                {
+                    // Note: this actually returns a path to the directory, not the executable.
+                    const auto credentialprovider_teambuild = paths.get_tool_exe("nuget-credentials-teambuild");
+                    Strings::concat(
+                        "set NUGET_CREDENTIALPROVIDERS_PATH=", credentialprovider_teambuild.u8string(), '&', cmdline);
+                }
+#endif
+
                 if (Debug::g_debugging)
                 {
                     System::cmd_execute(cmdline);
