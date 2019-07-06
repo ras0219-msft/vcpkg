@@ -128,7 +128,7 @@
         <sha512>9266349eccbc253e917b9607caa9912230eb0582f865b6afb349166a488355cc1c7357b06e16b5efcbc0cda9490562fe600b6bcacc6e872dad188b26a6aec79e</sha512>
         <archiveName>CredentialProvider.TeamBuild.15.105.25712.0.zip</archiveName>
     </tool>
-    <tool name="powershell" os="windows">
+    <tool name="powershell-core" os="windows">
         <version>6.2.1</version>
         <exeRelativePath>pwsh.exe</exeRelativePath>
         <url>https://github.com/PowerShell/PowerShell/releases/download/v6.2.1/PowerShell-6.2.1-win-x86.zip</url>

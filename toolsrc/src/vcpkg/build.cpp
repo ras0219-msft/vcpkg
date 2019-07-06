@@ -24,6 +24,7 @@
 #include <vcpkg/vcpkglib.h>
 
 using vcpkg::Build::BuildResult;
+using vcpkg::Dependencies::PathsPortFileProvider;
 using vcpkg::Parse::ParseControlErrorInfo;
 using vcpkg::Parse::ParseExpected;
 
@@ -35,34 +36,26 @@ namespace vcpkg::Build::Command
     static constexpr StringLiteral OPTION_CHECKS_ONLY = "--checks-only";
 
     void perform_and_exit_ex(const FullPackageSpec& full_spec,
-                             const fs::path& port_dir,
+                             const SourceControlFileLocation& scfl,
                              const ParsedArguments& options,
                              const VcpkgPaths& paths)
     {
         const PackageSpec& spec = full_spec.package_spec;
+        const auto& scf = *scfl.source_control_file;
         if (Util::Sets::contains(options.switches, OPTION_CHECKS_ONLY))
         {
             const auto pre_build_info = Build::PreBuildInfo::from_triplet_file(paths, spec.triplet());
             const auto build_info = Build::read_build_info(paths.get_filesystem(), paths.build_info_file_path(spec));
-            const size_t error_count = PostBuildLint::perform_all_checks(spec, paths, pre_build_info, build_info);
+            const size_t error_count =
+                PostBuildLint::perform_all_checks(spec, paths, pre_build_info, build_info, scfl.source_location);
             Checks::check_exit(VCPKG_LINE_INFO, error_count == 0);
             Checks::exit_success(VCPKG_LINE_INFO);
         }
 
-        const ParseExpected<SourceControlFile> source_control_file =
-            Paragraphs::try_load_port(paths.get_filesystem(), port_dir);
-
-        if (!source_control_file.has_value())
-        {
-            print_error_message(source_control_file.error());
-            Checks::exit_fail(VCPKG_LINE_INFO);
-        }
-
-        const auto& scf = source_control_file.value_or_exit(VCPKG_LINE_INFO);
         Checks::check_exit(VCPKG_LINE_INFO,
-                           spec.name() == scf->core_paragraph->name,
+                           spec.name() == scf.core_paragraph->name,
                            "The Source field inside the CONTROL file does not match the port directory: '%s' != '%s'",
-                           scf->core_paragraph->name,
+                           scf.core_paragraph->name,
                            spec.name());
 
         const StatusParagraphs status_db = database_load_check(paths);
@@ -80,8 +73,7 @@ namespace vcpkg::Build::Command
         std::set<std::string> features_as_set(full_spec.features.begin(), full_spec.features.end());
         features_as_set.emplace("core");
 
-        Dependencies::InstallPlanAction ipa(
-            spec, *scf, fs::path{port_dir}, features_as_set, Dependencies::RequestType::USER_REQUESTED, {});
+        Dependencies::InstallPlanAction ipa(spec, scfl, features_as_set, Dependencies::RequestType::USER_REQUESTED, {});
 
         const auto build_timer = Chrono::ElapsedTimer::create_started();
         const auto result = Build::build_package(paths, ipa, status_db);
@@ -129,10 +121,19 @@ namespace vcpkg::Build::Command
         // Build only takes a single package and all dependencies must already be installed
         const ParsedArguments options = args.parse_arguments(COMMAND_STRUCTURE);
         std::string first_arg = args.command_arguments.at(0);
+
         const FullPackageSpec spec = Input::check_and_get_full_package_spec(
             std::move(first_arg), default_triplet, COMMAND_STRUCTURE.example_text);
+
         Input::check_triplet(spec.package_spec.triplet(), paths);
-        perform_and_exit_ex(spec, paths.port_dir(spec.package_spec), options, paths);
+
+        PathsPortFileProvider provider(paths, args.overlay_ports.get());
+        const auto port_name = spec.package_spec.name();
+        const auto* scfl = provider.get_control_file(port_name).get();
+
+        Checks::check_exit(VCPKG_LINE_INFO, scfl != nullptr, "Error: Couldn't find port '%s'", port_name);
+
+        perform_and_exit_ex(spec, *scfl, options, paths);
     }
 }
 
@@ -358,7 +359,19 @@ namespace vcpkg::Build
     {
         auto& fs = paths.get_filesystem();
         const auto& build_action = config.build_action.value_or_exit(VCPKG_LINE_INFO);
-        const auto& scf = build_action.scf;
+        const auto& scfl = build_action.scfl;
+        const auto& scf = *scfl.source_control_file.get();
+        const Triplet& triplet = config.spec.triplet();
+        const auto& triplet_file_path = paths.get_triplet_file_path(triplet).u8string();
+
+        if (!Strings::case_insensitive_ascii_starts_with(triplet_file_path, paths.triplets.u8string()))
+        {
+            System::printf("-- Loading triplet configuration from: %s\n", triplet_file_path);
+        }
+        if (!Strings::case_insensitive_ascii_starts_with(scfl.source_location.u8string(), paths.ports.u8string()))
+        {
+            System::printf("-- Installing port from location: %s\n", scfl.source_location.u8string());
+        }
 
 #if !defined(_WIN32)
         // TODO: remove when vcpkg.exe is in charge for acquiring tools. Change introduced in vcpkg v0.0.107.
@@ -368,11 +381,13 @@ namespace vcpkg::Build
 
         const fs::path& cmake_exe_path = paths.get_tool_exe(Tools::CMAKE);
         const fs::path& git_exe_path = paths.get_tool_exe(Tools::GIT);
-        const fs::path& powershell_exe_path = paths.get_tool_exe("powershell");
+#if defined(_WIN32)
+        const fs::path& powershell_exe_path = paths.get_tool_exe("powershell-core");
         if (!fs.exists(powershell_exe_path.parent_path() / "powershell.exe"))
         {
             fs.copy(powershell_exe_path, powershell_exe_path.parent_path() / "powershell.exe", fs::copy_options::none);
         }
+#endif
 
         std::string all_features;
         for (auto& feature : scf.feature_paragraphs)
@@ -385,8 +400,9 @@ namespace vcpkg::Build
         std::vector<System::CMakeVariable> variables{
             {"CMD", "BUILD"},
             {"PORT", scf.core_paragraph->name},
-            {"CURRENT_PORT_DIR", build_action.port_dir.value_or_exit(VCPKG_LINE_INFO)},
-            {"TARGET_TRIPLET", config.spec.triplet().canonical_name()},
+            {"CURRENT_PORT_DIR", scfl.source_location},
+            {"TARGET_TRIPLET", triplet.canonical_name()},
+            {"TARGET_TRIPLET_FILE", triplet_file_path},
             {"VCPKG_PLATFORM_TOOLSET", toolset.version.c_str()},
             {"VCPKG_USE_HEAD_VERSION", Util::Enum::to_bool(build_action.build_options.use_head_version) ? "1" : "0"},
             {"DOWNLOADS", paths.downloads},
@@ -435,7 +451,8 @@ namespace vcpkg::Build
         }
 
         const BuildInfo build_info = read_build_info(fs, paths.build_info_file_path(config.spec));
-        const size_t error_count = PostBuildLint::perform_all_checks(config.spec, paths, pre_build_info, build_info);
+        const size_t error_count =
+            PostBuildLint::perform_all_checks(config.spec, paths, pre_build_info, build_info, scfl.source_location);
 
         auto bcf = create_binary_control_file(
             *scf.core_paragraph, config.spec.triplet(), build_info, config.abi.value_or(AbiTagAndFile{}).tag);
@@ -468,11 +485,12 @@ namespace vcpkg::Build
         if (build_action.build_options.clean_buildtrees == CleanBuildtrees::YES)
         {
             auto& fs = paths.get_filesystem();
-            const fs::path buildtrees_dir = paths.buildtrees / build_action.scf.core_paragraph->name;
+            const fs::path buildtrees_dir = paths.buildtrees / config.spec.name();
             auto buildtree_files = fs.get_files_non_recursive(buildtrees_dir);
             for (auto&& file : buildtree_files)
             {
-                if (fs.is_directory(file)) // Will only keep the logs
+                // Only delete directories, which will keep any log files
+                if (fs.is_directory(file))
                 {
                     std::error_code ec;
                     fs.remove_all(file, ec);
@@ -494,8 +512,8 @@ namespace vcpkg::Build
 
         auto& fs = paths.get_filesystem();
         const Triplet& triplet = config.spec.triplet();
-        const auto& scf = build_action.scf;
-        const std::string& name = scf.core_paragraph->name;
+        const auto& scf = *build_action.scfl.source_control_file;
+        const std::string& name = config.spec.name();
 
         std::vector<AbiEntry> abi_tag_entries(dependency_abis.begin(), dependency_abis.end());
 
@@ -508,8 +526,7 @@ namespace vcpkg::Build
 
         // the order of recursive_directory_iterator is undefined so save the names to sort
         std::vector<fs::path> port_files;
-        for (auto& port_file :
-             fs::stdfs::recursive_directory_iterator(build_action.port_dir.value_or_exit(VCPKG_LINE_INFO)))
+        for (auto& port_file : fs::stdfs::recursive_directory_iterator(build_action.scfl.source_location))
         {
             if (fs::is_regular_file(status(port_file)))
             {
@@ -638,7 +655,9 @@ namespace vcpkg::Build
         }
     }
 
-    static void decompress_archive(const VcpkgPaths& paths, const PackageSpec& spec, const fs::path& archive_path)
+    [[nodiscard]] static int decompress_archive(const VcpkgPaths& paths,
+                                                const PackageSpec& spec,
+                                                const fs::path& archive_path)
     {
         auto& fs = paths.get_filesystem();
 
@@ -652,14 +671,16 @@ namespace vcpkg::Build
 #if defined(_WIN32)
         auto&& seven_zip_exe = paths.get_tool_exe(Tools::SEVEN_ZIP);
 
-        System::cmd_execute(Strings::format(R"("%s" x "%s" -o"%s" -y >nul)",
-                                            seven_zip_exe.u8string(),
-                                            archive_path.u8string(),
-                                            pkg_path.u8string()),
-                            System::get_clean_environment());
+        int result = System::cmd_execute(Strings::format(R"("%s" x "%s" -o"%s" -y >nul)",
+                                                         seven_zip_exe.u8string(),
+                                                         archive_path.u8string(),
+                                                         pkg_path.u8string()),
+                                         System::get_clean_environment());
 #else
-        System::cmd_execute(Strings::format(R"(unzip -qq "%s" "-d%s")", archive_path.u8string(), pkg_path.u8string()));
+        int result = System::cmd_execute(
+            Strings::format(R"(unzip -qq "%s" "-d%s")", archive_path.u8string(), pkg_path.u8string()));
 #endif
+        return result;
     }
 
     // Compress the source directory into the destination file.
@@ -696,8 +717,8 @@ namespace vcpkg::Build
     {
         auto& fs = paths.get_filesystem();
         const auto& build_action = config.build_action.value_or_exit(VCPKG_LINE_INFO);
-        const auto& scf = build_action.scf;
-        const std::string& name = scf.core_paragraph->name;
+        const auto& scf = *build_action.scfl.source_control_file;
+        const std::string& name = config.spec.name();
 
         std::vector<FeatureSpec> required_fspecs =
             compute_required_feature_specs(scf, config.spec.triplet(), config.feature_list, status_db);
@@ -782,7 +803,12 @@ namespace vcpkg::Build
                 if (fs.exists(archive_path))
                 {
                     System::print2("Using cached binary package: ", archive_path.u8string(), "\n");
-                    decompress_archive(paths, config.spec, archive_path);
+                    auto result = decompress_archive(paths, config.spec, archive_path);
+                    if (result != 0)
+                    {
+                        System::print2("Failed to decompress archive package\n");
+                        return BuildResult::BUILD_FAILED;
+                    }
                     restored_from_cache = true;
                 }
             }
@@ -810,7 +836,7 @@ namespace vcpkg::Build
                 }
             }
 
-            System::print2("Could not locate cached archive: ", archive_path.u8string(), "\n");
+            System::printf("Could not locate cached archive: %s\n", archive_path.u8string());
 
             ExtendedBuildResult result = do_build_package_and_clean_buildtrees(paths, pre_build_info, config);
 
@@ -1088,7 +1114,7 @@ namespace vcpkg::Build
 
         const fs::path& cmake_exe_path = paths.get_tool_exe(Tools::CMAKE);
         const fs::path ports_cmake_script_path = paths.scripts / "get_triplet_environment.cmake";
-        const fs::path triplet_file_path = paths.triplets / (triplet.canonical_name() + ".cmake");
+        const fs::path triplet_file_path = paths.get_triplet_file_path(triplet);
 
         const auto cmd_launch_cmake = System::make_cmake_cmd(cmake_exe_path,
                                                              ports_cmake_script_path,
@@ -1191,6 +1217,11 @@ namespace vcpkg::Build
             {
                 hash += "-";
                 hash += Hash::get_file_hash(fs, *p, "SHA1");
+            }
+            else if (pre_build_info.cmake_system_name.empty() || pre_build_info.cmake_system_name == "WindowsStore")
+            {
+                hash += "-";
+                hash += Hash::get_file_hash(fs, paths.scripts / "toolchains" / "windows.cmake", "SHA1");
             }
             else if (pre_build_info.cmake_system_name == "Linux")
             {

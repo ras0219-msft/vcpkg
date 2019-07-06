@@ -756,17 +756,11 @@ namespace vcpkg::Install
             Build::FailOnTombstone::NO,
         };
 
-        auto all_ports = Paragraphs::load_all_ports(fs, paths.ports);
-        std::unordered_map<std::string, SourceControlFile> scf_map;
-        for (auto&& port : all_ports)
-            scf_map[port->core_paragraph->name] = std::move(*port);
-        MapPortFileProvider provider(scf_map);
+        //// Load ports from ports dirs
+        PathsPortFileProvider provider(paths, args.overlay_ports.get());
 
-        // Note: action_plan will hold raw pointers to SourceControlFiles from this map
+        // Note: action_plan will hold raw pointers to SourceControlFileLocations from this map
         auto action_plan = create_feature_install_plan(provider, FullPackageSpec::to_feature_specs(specs), status_db);
-
-        // install plan will be empty if it is already installed - need to change this at status paragraph part
-        Checks::check_exit(VCPKG_LINE_INFO, !action_plan.empty(), "Install plan cannot be empty");
 
         for (auto&& action : action_plan)
         {
@@ -774,8 +768,6 @@ namespace vcpkg::Install
             {
                 if (auto build_action = p_install->build_action.get())
                 {
-                    build_action->port_dir = paths.port_dir(p_install->spec);
-
                     build_action->build_options = install_plan_options;
                     if (p_install->request_type != RequestType::USER_REQUESTED)
                         build_action->build_options.use_head_version = Build::UseHeadVersion::NO;
@@ -802,7 +794,7 @@ namespace vcpkg::Install
 
         Metrics::g_metrics.lock()->track_property("installplan", specs_string);
 
-        Dependencies::print_plan(action_plan, is_recursive);
+        Dependencies::print_plan(action_plan, is_recursive, paths.ports);
 
         if (dry_run)
         {
