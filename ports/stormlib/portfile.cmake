@@ -9,18 +9,16 @@ vcpkg_from_github(
 )
 
 file(COPY 
-    ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt 
-    ${CMAKE_CURRENT_LIST_DIR}/stormlibConfig.cmake.in
-    ${CMAKE_CURRENT_LIST_DIR}/stormlibConfigVersion.cmake.in
-
+    ${CMAKE_CURRENT_LIST_DIR}/CMakeLists.txt
     DESTINATION ${SOURCE_PATH}
 )
 
 vcpkg_configure_cmake(
     SOURCE_PATH ${SOURCE_PATH}
     PREFER_NINJA
-    OPTIONS_DEBUG -DINSTALL_HEADERS=OFF
 )
+
+vcpkg_fixup_cmake_targets()
 
 vcpkg_install_cmake()
 

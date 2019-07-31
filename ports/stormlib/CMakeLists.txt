@@ -237,86 +237,39 @@ set(TOMMATH_FILES
 	src/libtommath/bn_s_mp_sub.c
 )
 
-# Needed for Windows
-set(ZLIB_BZIP2_FILES
-	src/bzip2/blocksort.c
-	src/bzip2/bzlib.c
-	src/bzip2/compress.c
-	src/bzip2/crctable.c
-	src/bzip2/decompress.c
-	src/bzip2/huffman.c
-	src/bzip2/randtable.c
-	src/zlib/adler32.c
-	src/zlib/compress.c
-	src/zlib/crc32.c
-	src/zlib/deflate.c
-	src/zlib/inffast.c
-	src/zlib/inflate.c
-	src/zlib/inftrees.c
-	src/zlib/trees.c
-	src/zlib/zutil.c
-)
-
 if(WIN32)
-	set(SRC_ADDITIONAL_FILES ${ZLIB_BZIP2_FILES} ${TOMCRYPT_FILES} ${TOMMATH_FILES})
 	set(LINK_LIBS wininet)
-else()
-	find_package(ZLIB REQUIRED)
-	find_package(BZip2 REQUIRED)
-
-	include_directories(${ZLIB_INCLUDE_DIR} ${BZIP2_INCLUDE_DIR})
-	set(LINK_LIBS ${ZLIB_LIBRARY} ${BZIP2_LIBRARIES})
-
-	add_definitions(-D__SYS_ZLIB -D__SYS_BZLIB)
-
-	option(WITH_LIBTOMCRYPT "Use system LibTomCrypt library" OFF)
-	if(WITH_LIBTOMCRYPT)
-			set(LINK_LIBS ${LINK_LIBS} tomcrypt)
-	else()
-			set(SRC_ADDITIONAL_FILES ${TOMCRYPT_FILES} ${TOMMATH_FILES})
-	endif()
 endif()
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD)
+find_package(ZLIB REQUIRED)
+find_package(BZip2 REQUIRED)
+
+list(APPEND LINK_LIBS ZLIB::ZLIB BZip2::BZip2)
+
+add_definitions(-D__SYS_ZLIB -D__SYS_BZLIB)
+
+option(WITH_LIBTOMCRYPT "Use system LibTomCrypt library" OFF)
+if(WITH_LIBTOMCRYPT)
+	list(APPEND LINK_LIBS tomcrypt)
+else()
+	set(SRC_ADDITIONAL_FILES ${TOMCRYPT_FILES} ${TOMMATH_FILES})
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
 	message(STATUS "Using FreeBSD port")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DO_LARGEFILE=0 -Dstat64=stat -Dlstat64=lstat -Dlseek64=lseek -Doff64_t=off_t -Dfstat64=fstat -Dftruncate64=ftruncate")
 endif()
 
-add_library(stormlib ${LIB_TYPE} ${SRC_FILES} ${SRC_ADDITIONAL_FILES} ${STORM_DEF_FILES})
-
+add_library(stormlib ${LIB_TYPE} ${SRC_FILES} ${SRC_ADDITIONAL_FILES})
 target_compile_definitions(stormlib PRIVATE _7ZIP_ST BZ_STRICT_ANSI)
+target_link_libraries(stormlib PRIVATE ${LINK_LIBS})
 
 set_target_properties(stormlib PROPERTIES PUBLIC_HEADER "src/StormLib.h;src/StormPort.h")
 
-if(INSTALL_HEADERS)
+install(TARGETS stormlib EXPORT stormlibConfig
+	RUNTIME DESTINATION bin
+	ARCHIVE DESTINATION lib
+	LIBRARY DESTINATION lib
+)
 
-	install(TARGETS stormlib EXPORT stormlibTargets
-			RUNTIME DESTINATION bin
-			ARCHIVE DESTINATION lib
-			LIBRARY DESTINATION lib
-	)
-
-	set(STORMLIB_VERSION "9.22")
-
-	export(TARGETS stormlib FILE "${PROJECT_BINARY_DIR}/stormlibTargets.cmake")
-	export(PACKAGE stormlib)
-
-	configure_file(stormlibConfig.cmake.in        "${PROJECT_BINARY_DIR}/stormlibConfig.cmake"        @ONLY)
-	configure_file(stormlibConfigVersion.cmake.in "${PROJECT_BINARY_DIR}/stormlibConfigVersion.cmake" @ONLY)
-
-	install(FILES
-		"${PROJECT_BINARY_DIR}/stormlibConfig.cmake"
-		"${PROJECT_BINARY_DIR}/stormlibConfigVersion.cmake"
-		DESTINATION share/stormlib
-	)
-
-
-	install(EXPORT stormlibTargets DESTINATION share/stormlib)
-else(INSTALL_HEADERS)
-
-	install(TARGETS stormlib EXPORT stormlib
-			RUNTIME DESTINATION bin
-			ARCHIVE DESTINATION lib
-			LIBRARY DESTINATION lib
-	)
-endif(INSTALL_HEADERS)
+install(EXPORT stormlibConfig NAMESPACE stormlib:: DESTINATION share/stormlib)
