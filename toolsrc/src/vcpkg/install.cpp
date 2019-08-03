@@ -346,8 +346,7 @@ namespace vcpkg::Install
             {
                 auto& fs = paths.get_filesystem();
                 const fs::path package_dir = paths.package_dir(action.spec);
-                std::error_code ec;
-                fs.remove_all(package_dir, ec);
+                fs.remove_all(package_dir, VCPKG_LINE_INFO);
             }
 
             if (build_action.build_options.clean_downloads == Build::CleanDownloads::YES)
@@ -442,12 +441,7 @@ namespace vcpkg::Install
 
                     // Purge all existing unpacked staging directories
                     auto package_dir = paths.package_dir(ipa.spec);
-                    std::error_code ec;
-                    fs.remove_all(package_dir, ec);
-                    Checks::check_exit(VCPKG_LINE_INFO,
-                                       !fs.exists(package_dir),
-                                       "Unable to remove directory %s",
-                                       package_dir.u8string());
+                    fs.remove_all(package_dir, VCPKG_LINE_INFO);
 
                     // Add the package to packages.config
                     Strings::append(packages_config_content,
