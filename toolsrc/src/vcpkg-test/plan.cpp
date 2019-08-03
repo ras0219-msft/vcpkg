@@ -1121,6 +1121,39 @@ TEST_CASE ("basic upgrade scheme with new default feature", "[plan]")
     features_check(plan.at(1), "a", {"core", "a1"});
 }
 
+TEST_CASE ("basic upgrade scheme ---------", "[plan]")
+{
+    // only core of package "a" is installed
+    std::vector<std::unique_ptr<StatusParagraph>> pghs;
+    pghs.push_back(make_status_pgh("cpprestsdk", "", "defaults"));
+    pghs.push_back(make_status_feature_pgh("cpprestsdk", "compression", ""));
+    StatusParagraphs status_db(std::move(pghs));
+
+    PackageSpecMap spec_map;
+    auto spec_a = spec_map.emplace("cpprestsdk",
+                                   "",
+                                   {{"brotli", "cpprestsdk[compression], cpprestsdk[core]"},
+                                    {"defaults", "cpprestsdk[compression], cpprestsdk[core], cpprestsdk[websockets]"},
+                                    {"compression", ""},
+                                    {"websockets", ""}},
+                                   {"compression, websockets"});
+
+    Dependencies::MapPortFileProvider provider(spec_map.map);
+    Dependencies::PackageGraph graph(provider, status_db);
+
+    graph.install(FeatureSpec(spec_a, "core"));
+    graph.install(FeatureSpec(spec_a, "brotli"));
+
+    auto plan = graph.serialize();
+
+    REQUIRE(plan.size() == 2);
+
+    REQUIRE(plan.at(0).spec().name() == "cpprestsdk");
+    REQUIRE(plan.at(0).remove_action.has_value());
+
+    features_check(plan.at(1), "cpprestsdk", {"core", "compression", "brotli"});
+}
+
 TEST_CASE ("basic upgrade scheme with self features", "[plan]")
 {
     std::vector<std::unique_ptr<StatusParagraph>> pghs;
