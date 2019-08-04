@@ -229,12 +229,12 @@ namespace vcpkg::Dependencies
 
     std::string Dependencies::nuget_package_version(const std::string& version, const std::string& abi_tag)
     {
-        static const std::regex semver_matcher(R"(v?(\d+\.\d+)(\.(\d+))?.*)");
+        static const std::regex semver_matcher(R"(v?(\d+\.\d+)(\.\d+)?.*)");
 
         std::smatch sm;
         if (std::regex_match(version.cbegin(), version.cend(), sm, semver_matcher))
         {
-            if (sm.size() == 2)
+            if (sm.size() <= 2 || sm[2].length() == 0)
                 return Strings::concat(sm.str(1), ".0-", abi_tag);
             else if (sm.size() >= 3)
                 return Strings::concat(sm.str(1), sm.str(2), "-", abi_tag);

@@ -11,10 +11,10 @@
   <Target Name="Rebuild" DependsOnTargets="Clean;Build" />
 
   <Target Name="Build">
-    <MSBuild Projects="@(ProjectFile)" Properties="SolutionDir=$(SolutionDir)" Targets="Build"/>
+    <MSBuild Projects="@(ProjectFile)" BuildInParallel="true" Properties="SolutionDir=$(SolutionDir)" Targets="Build"/>
   </Target>
 
   <Target Name="Clean">
-    <MSBuild Projects="@(ProjectFile)" Properties="SolutionDir=$(SolutionDir)" Targets="Clean"/>
+    <MSBuild Projects="@(ProjectFile)" BuildInParallel="true" Properties="SolutionDir=$(SolutionDir)" Targets="Clean"/>
   </Target>
 </Project>

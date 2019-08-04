@@ -126,8 +126,10 @@ namespace vcpkg::Files
         std::error_code ec;
         this->rename(oldpath, newpath, ec);
         if (ec)
+        {
             Checks::exit_with_message(
                 linfo, "error renaming file: %s: %s: %s", oldpath.u8string(), newpath.u8string(), ec.message());
+        }
     }
 
     bool Filesystem::remove(const fs::path& path, LineInfo linfo)
