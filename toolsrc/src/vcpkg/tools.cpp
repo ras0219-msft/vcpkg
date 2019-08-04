@@ -261,20 +261,14 @@ namespace vcpkg
     struct CMakeProvider : ToolProvider
     {
         std::string m_exe = "cmake";
+        std::string m_empty;
 
         virtual const std::string& tool_data_name() const override { return m_exe; }
-        virtual const std::string& exe_stem() const override { return m_exe; }
+        virtual const std::string& exe_stem() const override { return m_empty; }
         virtual std::array<int, 3> default_min_version() const override { return {3, 5, 1}; }
 
-        virtual void add_special_paths(std::vector<fs::path>& out_candidate_paths) const override
+        virtual void add_special_paths(std::vector<fs::path>& /*out_candidate_paths*/) const override
         {
-#if defined(_WIN32)
-            const auto& program_files = System::get_program_files_platform_bitness();
-            if (const auto pf = program_files.get()) out_candidate_paths.push_back(*pf / "CMake" / "bin" / "cmake.exe");
-            const auto& program_files_32_bit = System::get_program_files_32_bit();
-            if (const auto pf = program_files_32_bit.get())
-                out_candidate_paths.push_back(*pf / "CMake" / "bin" / "cmake.exe");
-#endif
         }
         virtual Optional<std::string> get_version(const fs::path& path_to_exe) const override
         {
