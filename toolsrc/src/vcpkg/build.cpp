@@ -427,7 +427,21 @@ namespace vcpkg::Build
         std::vector<System::CMakeVariable> variables =
             get_cmake_vars(paths, build_action, features_list, triplet, toolset);
 
-        return System::make_cmake_cmd(cmake_exe_path, paths.ports_cmake, variables);
+        const std::string cmd_launch_cmake = System::make_cmake_cmd(cmake_exe_path, paths.ports_cmake, variables);
+
+        std::string command = make_build_env_cmd(pre_build_info, toolset);
+        if (!command.empty())
+        {
+#ifdef _WIN32
+            command.append(" & ");
+#else
+            command.append(" && ");
+#endif
+        }
+
+        command.append(cmd_launch_cmake);
+
+        return command;
     }
 
     static std::string get_triplet_abi(const VcpkgPaths& paths,
@@ -492,6 +506,13 @@ namespace vcpkg::Build
         const auto& scf = *scfl.source_control_file.get();
         const Triplet& triplet = config.spec.triplet();
         const auto& triplet_file_path = paths.get_triplet_file_path(triplet).u8string();
+#if defined(_WIN32)
+        const fs::path& powershell_exe_path = paths.get_tool_exe("powershell-core");
+        if (!fs.exists(powershell_exe_path.parent_path() / "powershell.exe"))
+        {
+            fs.copy(powershell_exe_path, powershell_exe_path.parent_path() / "powershell.exe", fs::copy_options::none);
+        }
+#endif
 
         if (!Strings::case_insensitive_ascii_starts_with(triplet_file_path, paths.triplets.u8string()))
         {
@@ -507,11 +528,6 @@ namespace vcpkg::Build
         std::string command = make_build_cmd(paths, pre_build_info, build_action, config.feature_list, triplet);
 
 #if defined(_WIN32)
-        const fs::path& powershell_exe_path = paths.get_tool_exe("powershell-core");
-        if (!fs.exists(powershell_exe_path.parent_path() / "powershell.exe"))
-        {
-            fs.copy(powershell_exe_path, powershell_exe_path.parent_path() / "powershell.exe", fs::copy_options::none);
-        }
         auto env_cmd = make_build_env_cmd(pre_build_info, paths.get_toolset(pre_build_info));
 
         auto env_passthrough = make_env_passthrough(pre_build_info);
@@ -624,6 +640,9 @@ namespace vcpkg::Build
 
         std::vector<AbiEntry> abi_tag_entries(dependency_abis.begin(), dependency_abis.end());
 
+#if defined(_WIN32)
+        abi_tag_entries.emplace_back(AbiEntry{"powershell", paths.get_tool_version("powershell-core")});
+#endif
         abi_tag_entries.emplace_back(AbiEntry{"cmake", paths.get_tool_version(Tools::CMAKE)});
 
         // If there is an unusually large number of files in the port then
@@ -635,7 +654,7 @@ namespace vcpkg::Build
         std::vector<fs::path> port_files;
         for (auto& port_file : fs::stdfs::recursive_directory_iterator(build_action.scfl.source_location))
         {
-            if (fs::is_regular_file(status(port_file)))
+            if (fs::is_regular_file(fs.status(VCPKG_LINE_INFO, port_file)))
             {
                 port_files.push_back(port_file);
                 if (port_files.size() > max_port_file_count)
@@ -968,14 +987,14 @@ namespace vcpkg::Build
                                            escape(feed),
                                            " -ApiKey AzureDevOps -NonInteractive -ForceEnglishOutput");
 #if defined(_WIN32)
-                const auto in_azure_pipelines = System::get_environment_variable("TF_BUILD");
-                if (in_azure_pipelines.has_value())
-                {
-                    // Note: this actually returns a path to the directory, not the executable.
-                    const auto credentialprovider_teambuild = paths.get_tool_exe("nuget-credentials-teambuild");
-                    cmdline = Strings::concat(
-                        "set NUGET_CREDENTIALPROVIDERS_PATH=", credentialprovider_teambuild.u8string(), '&', cmdline);
-                }
+            const auto in_azure_pipelines = System::get_environment_variable("TF_BUILD");
+            if (in_azure_pipelines.has_value())
+            {
+                // Note: this actually returns a path to the directory, not the executable.
+                const auto credentialprovider_teambuild = paths.get_tool_exe("nuget-credentials-teambuild");
+                cmdline = Strings::concat(
+                    "set NUGET_CREDENTIALPROVIDERS_PATH=", credentialprovider_teambuild.u8string(), '&', cmdline);
+            }
 #endif
             System::Jobs::post(
                 [cmdline]() {
@@ -1068,7 +1087,8 @@ namespace vcpkg::Build
                     package.dir(), " ", Dependencies::nuget_package_version(package.version, package.abi)));
         }
 
-        const auto pre_build_info = PreBuildInfo::from_triplet_file(paths, triplet, config.source_control_file_location);
+        const auto pre_build_info =
+            PreBuildInfo::from_triplet_file(paths, triplet, config.source_control_file_location);
         const auto buildtree_dir = paths.buildtrees / config.spec.name();
 
         if (auto abi_tag_and_file = config.abi.get())
