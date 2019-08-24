@@ -1,0 +1,13 @@
+if(NOT CURL_FOUND)
+  _find_package(${ARGS})
+
+  if(CURL_FOUND)
+    find_package(ZLIB)
+    if(TARGET CURL::libcurl)
+      set_property(TARGET CURL::libcurl APPEND PROPERTY INTERFACE_LINK_LIBRARIES ZLIB::ZLIB)
+    endif()
+    if(CURL_LIBRARIES)
+      list(APPEND CURL_LIBRARIES ${ZLIB_LIBRARIES})
+    endif()
+  endif()
+endif()
