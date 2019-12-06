@@ -14,7 +14,7 @@ namespace vcpkg::Update
         return left.spec.name() < right.spec.name();
     }
 
-    std::vector<OutdatedPackage> find_outdated_packages(const Dependencies::PortFileProvider& provider,
+    std::vector<OutdatedPackage> find_outdated_packages(Dependencies::PortFileProvider& provider,
                                                         const StatusParagraphs& status_db)
     {
         auto installed_packages = get_installed_ports(status_db);
@@ -23,10 +23,10 @@ namespace vcpkg::Update
         for (auto&& ipv : installed_packages)
         {
             const auto& pgh = ipv.core;
-            auto maybe_scfl = provider.get_control_file(pgh->package.spec.name());
+            auto maybe_scfl = provider.get_control_file(pgh->package.spec.name(), {});
             if (auto p_scfl = maybe_scfl.get())
             {
-                auto&& port_version = p_scfl->source_control_file->core_paragraph->version;
+                auto&& port_version = p_scfl->scfl.source_control_file->core_paragraph->version;
                 auto&& installed_version = pgh->package.version;
                 if (installed_version != port_version)
                 {

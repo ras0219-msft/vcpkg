@@ -44,6 +44,8 @@ namespace vcpkg::Dependencies
             bool minus = false;
             bool transient_uninstalled = true;
             RequestType request_type = RequestType::AUTO_SELECTED;
+
+            PortFileProviderConstraints constraints;
         };
 
         struct ClusterPtr
@@ -82,20 +84,21 @@ namespace vcpkg::Dependencies
     /// </summary>
     struct ClusterGraph : Util::MoveOnlyBase
     {
-        explicit ClusterGraph(const PortFileProvider& provider) : m_provider(provider) {}
+        explicit ClusterGraph(PortFileProvider& provider) : m_provider(provider) {}
 
         /// <summary>
         ///     Find the cluster associated with spec or if not found, create it from the PortFileProvider.
         /// </summary>
         /// <param name="spec">Package spec to get the cluster for.</param>
         /// <returns>The cluster found or created for spec.</returns>
-        Cluster& get(const PackageSpec& spec)
+        Cluster& get(const PackageSpec& spec, Cluster* source)
         {
             auto it = m_graph.find(spec);
             if (it == m_graph.end())
             {
                 // Load on-demand from m_provider
-                auto maybe_scfl = m_provider.get_control_file(spec.name());
+                auto maybe_scfl = m_provider.get_control_file(
+                    spec.name(), source ? source->constraints : PortFileProviderConstraints{});
                 auto& clust = m_graph[spec];
                 clust.spec = spec;
                 if (auto p_scfl = maybe_scfl.get())
@@ -104,10 +107,18 @@ namespace vcpkg::Dependencies
                 }
                 return clust;
             }
+            else
+            {
+                it->second->
+            }
             return it->second;
         }
 
     private:
+        void unify_constraints(Cluster& left, Cluster& right) {
+
+        }
+
         static ClusterSource cluster_from_scf(const SourceControlFileLocation& scfl, Triplet t)
         {
             ClusterSource ret;
@@ -122,7 +133,7 @@ namespace vcpkg::Dependencies
         }
 
         std::unordered_map<PackageSpec, Cluster> m_graph;
-        const PortFileProvider& m_provider;
+        PortFileProvider& m_provider;
     };
 
     static std::string to_output_string(RequestType request_type,
@@ -299,14 +310,15 @@ namespace vcpkg::Dependencies
     {
     }
 
-    Optional<const SourceControlFileLocation&> MapPortFileProvider::get_control_file(const std::string& spec) const
+    Optional<const SourceControlFileLocation&> MapPortFileProvider::get_control_file(const std::string& spec,
+                                                                                     Optional<const fs::path&>)
     {
         auto scf = ports.find(spec);
         if (scf == ports.end()) return nullopt;
         return scf->second;
     }
 
-    std::vector<const SourceControlFileLocation*> MapPortFileProvider::load_all_control_files() const
+    std::vector<const SourceControlFileLocation*> MapPortFileProvider::load_all_control_files()
     {
         return Util::fmap(ports, [](auto&& kvpair) -> const SourceControlFileLocation* { return &kvpair.second; });
     }
@@ -341,7 +353,8 @@ namespace vcpkg::Dependencies
         ports_dirs.emplace_back(paths.ports);
     }
 
-    Optional<const SourceControlFileLocation&> PathsPortFileProvider::get_control_file(const std::string& spec) const
+    Optional<const SourceControlFileLocation&> PathsPortFileProvider::get_control_file(const std::string& spec,
+                                                                                       Optional<const fs::path&>)
     {
         auto cache_it = cache.find(spec);
         if (cache_it != cache.end())
@@ -387,7 +400,7 @@ namespace vcpkg::Dependencies
         return nullopt;
     }
 
-    std::vector<const SourceControlFileLocation*> PathsPortFileProvider::load_all_control_files() const
+    std::vector<const SourceControlFileLocation*> PathsPortFileProvider::load_all_control_files()
     {
         // Reload cache with ports contained in all ports_dirs
         cache.clear();
@@ -432,6 +445,8 @@ namespace vcpkg::Dependencies
         }
         return ret;
     }
+
+    std::vector<std::string> PathsPortFileProvider::get_conflicts() const { return m_conflicts; }
 
     std::vector<RemovePlanAction> create_remove_plan(const std::vector<PackageSpec>& specs,
                                                      const StatusParagraphs& status_db)

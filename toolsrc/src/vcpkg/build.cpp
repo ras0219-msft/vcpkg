@@ -117,11 +117,11 @@ namespace vcpkg::Build::Command
 
         PathsPortFileProvider provider(paths, args.overlay_ports.get());
         const auto port_name = spec.package_spec.name();
-        const auto* scfl = provider.get_control_file(port_name).get();
+        const auto maybe_port = provider.get_control_file(port_name, {});
 
-        Checks::check_exit(VCPKG_LINE_INFO, scfl != nullptr, "Error: Couldn't find port '%s'", port_name);
+        Checks::check_exit(VCPKG_LINE_INFO, maybe_port.has_value(), "Error: Couldn't find port '%s'", port_name);
 
-        perform_and_exit_ex(spec, *scfl, options, paths);
+        perform_and_exit_ex(spec, maybe_port.get()->scfl, options, paths);
     }
 }
 

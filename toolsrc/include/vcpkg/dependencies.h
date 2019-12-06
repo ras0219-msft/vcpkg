@@ -127,17 +127,29 @@ namespace vcpkg::Dependencies
         Optional<InstalledPackageView> m_installed_package;
     };
 
+    struct PortFileProviderConstraints
+    {
+    };
+
+    struct GetControlFileResults
+    {
+        const SourceControlFileLocation& scfl;
+        PortFileProviderConstraints constraints;
+    };
+
     struct PortFileProvider
     {
-        virtual Optional<const SourceControlFileLocation&> get_control_file(const std::string& src_name) const = 0;
-        virtual std::vector<const SourceControlFileLocation*> load_all_control_files() const = 0;
+        virtual Optional<GetControlFileResults> get_control_file(const std::string& src_name,
+                                                                 const PortFileProviderConstraints& constraints) = 0;
+        virtual std::vector<const SourceControlFileLocation*> load_all_control_files() = 0;
     };
 
     struct MapPortFileProvider : Util::ResourceBase, PortFileProvider
     {
         explicit MapPortFileProvider(const std::unordered_map<std::string, SourceControlFileLocation>& map);
-        Optional<const SourceControlFileLocation&> get_control_file(const std::string& src_name) const override;
-        std::vector<const SourceControlFileLocation*> load_all_control_files() const override;
+        Optional<GetControlFileResults> get_control_file(const std::string& src_name,
+                                                         const PortFileProviderConstraints& constraints) override;
+        std::vector<const SourceControlFileLocation*> load_all_control_files() override;
 
     private:
         const std::unordered_map<std::string, SourceControlFileLocation>& ports;
@@ -147,13 +159,30 @@ namespace vcpkg::Dependencies
     {
         explicit PathsPortFileProvider(const vcpkg::VcpkgPaths& paths,
                                        const std::vector<std::string>* ports_dirs_paths);
-        Optional<const SourceControlFileLocation&> get_control_file(const std::string& src_name) const override;
-        std::vector<const SourceControlFileLocation*> load_all_control_files() const override;
+        Optional<GetControlFileResults> get_control_file(const std::string& src_name,
+                                                         const PortFileProviderConstraints& constraints) override;
+        std::vector<const SourceControlFileLocation*> load_all_control_files() override;
 
     private:
         Files::Filesystem& filesystem;
         std::vector<fs::path> ports_dirs;
-        mutable std::unordered_map<std::string, SourceControlFileLocation> cache;
+        std::unordered_map<std::string, SourceControlFileLocation> cache;
+    };
+
+    struct VersionedPortFileProvider : Util::ResourceBase, PortFileProvider
+    {
+        explicit VersionedPortFileProvider(const vcpkg::VcpkgPaths& paths,
+                                           std::vector<std::string> ids_list,
+                                           std::unordered_map<std::string, std::string> ids_to_catalogs,
+                                           std::unordered_map<std::string, std::string> pinned_ports);
+        Optional<GetControlFileResults> get_control_file(const std::string& src_name,
+                                                         const PortFileProviderConstraints& constraints) override;
+        std::vector<const SourceControlFileLocation*> load_all_control_files() override;
+
+    private:
+        Files::Filesystem& filesystem;
+        std::vector<fs::path> ports_dirs;
+        std::unordered_map<std::string, SourceControlFileLocation> cache;
     };
 
     struct ClusterGraph;

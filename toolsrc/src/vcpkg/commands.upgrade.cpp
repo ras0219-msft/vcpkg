@@ -86,12 +86,12 @@ namespace vcpkg::Commands::Upgrade
                     not_installed.push_back(spec);
                 }
 
-                auto maybe_scfl = provider.get_control_file(spec.name());
+                auto maybe_scfl = provider.get_control_file(spec.name(), {});
                 if (auto p_scfl = maybe_scfl.get())
                 {
                     if (it != status_db.end())
                     {
-                        if (p_scfl->source_control_file->core_paragraph->version != (*it)->package.version)
+                        if (p_scfl->scfl.source_control_file->core_paragraph->version != (*it)->package.version)
                         {
                             to_upgrade.push_back(spec);
                         }
