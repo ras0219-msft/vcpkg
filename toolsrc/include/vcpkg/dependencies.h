@@ -67,15 +67,15 @@ namespace vcpkg::Dependencies
 
         PackageSpec spec;
         Optional<Build::AbiTagAndFile> abi;
-        std::set<std::string> feature_list;
-        std::vector<PackageSpec> computed_dependencies;
 
         Optional<const SourceControlFileLocation&> source_control_file_location;
+        Optional<InstalledPackageView> installed_package;
 
         InstallPlanType plan_type;
         RequestType request_type;
-        Optional<InstalledPackageView> installed_package;
         Optional<BuildAndInstallAction> build_action;
+        std::set<std::string> feature_list;
+        std::vector<PackageSpec> computed_dependencies;
     };
 
     enum class RemovePlanType

@@ -161,10 +161,8 @@ namespace vcpkg::Files
         std::error_code ec;
         this->rename(oldpath, newpath, ec);
         if (ec)
-        {
             Checks::exit_with_message(
                 linfo, "error renaming file: %s: %s: %s", oldpath.u8string(), newpath.u8string(), ec.message());
-        }
     }
 
     bool Filesystem::remove(const fs::path& path, LineInfo linfo)
@@ -187,7 +185,7 @@ namespace vcpkg::Files
         if (ec) Checks::exit_with_message(li, "error checking existence of file %s: %s", path.u8string(), ec.message());
         return result;
     }
-    
+
     bool Filesystem::exists(const fs::path& path) const
     {
         std::error_code ec;
@@ -434,7 +432,8 @@ namespace vcpkg::Files
                             break;
                         }
                         auto remaining = read_bytes;
-                        while (remaining > 0) {
+                        while (remaining > 0)
+                        {
                             auto read_result = write(o_fd, buffer.get(), remaining);
                             if (read_result == -1)
                             {
@@ -446,7 +445,7 @@ namespace vcpkg::Files
                         }
                     }
 
-                    copy_failure: ;
+                copy_failure:;
                 }
 #endif
                 if (written_bytes == -1)

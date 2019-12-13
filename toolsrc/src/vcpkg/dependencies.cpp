@@ -182,11 +182,11 @@ namespace vcpkg::Dependencies
                                          const RequestType& request_type,
                                          std::vector<PackageSpec>&& dependencies)
         : spec(spec)
-        , feature_list(features)
-        , computed_dependencies(std::move(dependencies))
         , plan_type(InstallPlanType::BUILD_AND_INSTALL)
         , request_type(request_type)
         , build_action(BuildAndInstallAction{scfl, Build::BuildPackageOptions{}})
+        , feature_list(features)
+        , computed_dependencies(std::move(dependencies))
     {
     }
 
@@ -194,11 +194,11 @@ namespace vcpkg::Dependencies
                                          const std::set<std::string>& features,
                                          const RequestType& request_type)
         : spec(ipv.spec())
-        , feature_list(features)
-        , computed_dependencies(ipv.dependencies())
+        , installed_package(std::move(ipv))
         , plan_type(InstallPlanType::ALREADY_INSTALLED)
         , request_type(request_type)
-        , installed_package(std::move(ipv))
+        , feature_list(features)
+        , computed_dependencies(ipv.dependencies())
     {
     }
 

@@ -385,7 +385,6 @@ namespace vcpkg::Build
         // bootstrap should have already downloaded ninja, but making sure it is present in case it was deleted.
         vcpkg::Util::unused(paths.get_tool_exe(Tools::NINJA));
 #endif
-
         const fs::path& git_exe_path = paths.get_tool_exe(Tools::GIT);
 
         std::string all_features;
@@ -398,10 +397,10 @@ namespace vcpkg::Build
             {"CMD", "BUILD"},
             {"PORT", build_action.scfl.source_control_file->core_paragraph->name},
             {"CURRENT_PORT_DIR", build_action.scfl.source_location},
+            {"VCPKG_ROOT_PATH", paths.root},
             {"TARGET_TRIPLET", triplet.canonical_name()},
             {"TARGET_TRIPLET_FILE", paths.get_triplet_file_path(triplet).u8string()},
             {"ENV_OVERRIDES_FILE", build_action.scfl.source_location / "environment-overrides.cmake"},
-            {"VCPKG_ROOT_PATH", paths.root},
             {"VCPKG_PLATFORM_TOOLSET", toolset.version.c_str()},
             {"VCPKG_USE_HEAD_VERSION", Util::Enum::to_bool(build_action.build_options.use_head_version) ? "1" : "0"},
             {"DOWNLOADS", paths.downloads},
@@ -1191,6 +1190,8 @@ namespace vcpkg::Build
             const fs::path archive_subpath = fs::u8path(abi_tag_and_file->tag.substr(0, 2)) / archive_name;
             const fs::path archive_path = archives_root_dir / archive_subpath;
             const fs::path archive_tombstone_path = archives_root_dir / "fail" / archive_subpath;
+            const fs::path abi_package_dir = package_dir / "share" / config.spec.name();
+            const fs::path abi_file_in_package = abi_package_dir / "vcpkg_abi_info.txt";
 
             if (!restored_from_cache)
             {
@@ -1234,19 +1235,21 @@ namespace vcpkg::Build
 
             ExtendedBuildResult result = do_build_package_and_clean_buildtrees(paths, pre_build_info, config);
 
-            fs.create_directories(package_dir / "share" / config.spec.name(), ec);
-            auto abi_file_in_package = package_dir / "share" / config.spec.name() / "vcpkg_abi_info.txt";
+            fs.create_directories(abi_package_dir, ec);
             fs.copy_file(abi_tag_and_file->tag_file, abi_file_in_package, fs::stdfs::copy_options::none, ec);
             Checks::check_exit(VCPKG_LINE_INFO, !ec, "Could not copy into file: %s", abi_file_in_package.u8string());
 
-            if (result.code == BuildResult::SUCCEEDED)
+            if (build_action.build_options.binary_caching == BinaryCaching::YES)
             {
-                archive_results(paths, package_dir, nugetspec, archive_path, config, nuget_dependency_strings);
-            }
-            else if (build_action.build_options.binary_caching == BinaryCaching::YES &&
-                     (result.code == BuildResult::BUILD_FAILED || result.code == BuildResult::POST_BUILD_CHECKS_FAILED))
-            {
-                archive_failure_logs(paths, archive_tombstone_path, buildtree_dir, config.spec);
+                if (result.code == BuildResult::SUCCEEDED)
+                {
+                    archive_results(paths, package_dir, nugetspec, archive_path, config, nuget_dependency_strings);
+                }
+                else if (result.code == BuildResult::BUILD_FAILED ||
+                         result.code == BuildResult::POST_BUILD_CHECKS_FAILED)
+                {
+                    archive_failure_logs(paths, archive_tombstone_path, buildtree_dir, config.spec);
+                }
             }
 
             return result;

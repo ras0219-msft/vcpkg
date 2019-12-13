@@ -785,11 +785,11 @@ namespace vcpkg::Install
             }
         }
 
+        std::map<PackageSpec, std::string> abi_tag_map;
+        vcpkg::Cache<Triplet, Build::PreBuildInfo> pre_build_info_cache;
         if (GlobalState::g_binary_caching)
         {
             // Fill in the abi fields of all install actions
-            std::map<PackageSpec, std::string> abi_tag_map;
-            vcpkg::Cache<Triplet, Build::PreBuildInfo> pre_build_info_cache;
             Build::compute_all_abi_tags(paths, abi_tag_map, pre_build_info_cache, action_plan, status_db);
         }
 
