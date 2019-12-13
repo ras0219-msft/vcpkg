@@ -14,6 +14,7 @@
 namespace vcpkg
 {
     Expected<VcpkgPaths> VcpkgPaths::create(const fs::path& vcpkg_root_dir,
+                                            const Optional<fs::path>& install_root_dir,
                                             const Optional<fs::path>& vcpkg_scripts_root_dir,
                                             const std::string& default_vs_path,
                                             const std::vector<std::string>* triplets_dirs)
@@ -65,7 +66,14 @@ namespace vcpkg
         }
 
         paths.ports = paths.root / "ports";
-        paths.installed = paths.root / "installed";
+        if (auto ird = install_root_dir.get())
+        {
+            paths.installed = *ird;
+        }
+        else
+        {
+            paths.installed = paths.root / "installed";
+        }
         paths.triplets = paths.root / "triplets";
 
         if (auto scripts_dir = vcpkg_scripts_root_dir.get())
@@ -76,7 +84,7 @@ namespace vcpkg
                 Checks::exit_with_message(
                     VCPKG_LINE_INFO,
                     "Invalid scripts override directory: %s; "
-                    "create that directory or unset --scripts-root to use the default scripts location.",
+                    "create that directory or unset --x-scripts-root to use the default scripts location.",
                     scripts_dir->u8string());
             }
 
@@ -155,9 +163,9 @@ namespace vcpkg
     {
         return m_triplets_cache.get_lazy(
             triplet, [&]() -> auto {
-                for (auto&& triplet_dir : triplets_dirs)
+                for (const auto& triplet_dir : triplets_dirs)
                 {
-                    auto&& path = triplet_dir / (triplet.canonical_name() + ".cmake");
+                    auto path = triplet_dir / (triplet.canonical_name() + ".cmake");
                     if (this->get_filesystem().exists(path))
                     {
                         return path;

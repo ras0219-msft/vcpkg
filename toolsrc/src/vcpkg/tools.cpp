@@ -267,9 +267,7 @@ namespace vcpkg
         virtual const std::string& exe_stem() const override { return m_empty; }
         virtual std::array<int, 3> default_min_version() const override { return {3, 5, 1}; }
 
-        virtual void add_special_paths(std::vector<fs::path>& /*out_candidate_paths*/) const override
-        {
-        }
+        virtual void add_special_paths(std::vector<fs::path>& /*out_candidate_paths*/) const override {}
         virtual Optional<std::string> get_version(const fs::path& path_to_exe) const override
         {
             const std::string cmd = Strings::format(R"("%s" --version)", path_to_exe.u8string());
@@ -356,6 +354,9 @@ Type 'NuGet help <command>' for help on a specific command.
             const auto& program_files_32_bit = System::get_program_files_32_bit();
             if (const auto pf = program_files_32_bit.get())
                 out_candidate_paths.push_back(*pf / "git" / "cmd" / "git.exe");
+#else
+            // TODO: figure out if this should do anything on non-windows
+            Util::unused(out_candidate_paths);
 #endif
         }
 

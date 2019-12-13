@@ -179,9 +179,8 @@ namespace vcpkg::Dependencies
         PackageGraph(const PortFileProvider& provider, const StatusParagraphs& status_db);
         ~PackageGraph();
 
-        void install(const FeatureSpec& spec,
-                     const std::unordered_set<std::string>& prevent_default_features = {}) const;
-        void upgrade(const PackageSpec& spec) const;
+        void install(const FeatureSpec& spec, const std::unordered_set<std::string>& prevent_default_features = {});
+        void upgrade(const PackageSpec& spec);
 
         std::vector<AnyAction> serialize(const CreateInstallPlanOptions& options = {}) const;
 

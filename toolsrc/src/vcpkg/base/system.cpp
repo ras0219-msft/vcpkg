@@ -5,6 +5,7 @@
 #include <vcpkg/base/system.debug.h>
 #include <vcpkg/base/system.h>
 #include <vcpkg/base/system.process.h>
+#include <vcpkg/base/util.h>
 
 #include <ctime>
 
@@ -661,10 +662,7 @@ namespace vcpkg
         return Strings::to_utf8(ret);
     }
 #else
-    Optional<std::string> System::get_registry_string(void* base_hkey, StringView sub_key, StringView valuename)
-    {
-        return nullopt;
-    }
+    Optional<std::string> System::get_registry_string(void*, StringView, StringView) { return nullopt; }
 #endif
 
     static const Optional<fs::path>& get_program_files()

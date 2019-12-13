@@ -129,7 +129,7 @@ namespace vcpkg::Downloads
     {
         // <HACK: Special keyword to ignore the SHA512 of the download.>
         if (sha512 == "IGNORE_SHA") return;
-        std::string actual_hash = vcpkg::Hash::get_file_hash(fs, path, "SHA512");
+        std::string actual_hash = vcpkg::Hash::get_file_hash(VCPKG_LINE_INFO, fs, path, Hash::Algorithm::Sha512);
 
         // <HACK to handle NuGet.org changing nupkg hashes.>
         // This is the NEW hash for 7zip

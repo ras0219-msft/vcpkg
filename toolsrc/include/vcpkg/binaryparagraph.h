@@ -4,8 +4,6 @@
 #include <vcpkg/parse.h>
 #include <vcpkg/sourceparagraph.h>
 
-#include <unordered_map>
-
 namespace vcpkg
 {
     /// <summary>
@@ -23,6 +21,8 @@ namespace vcpkg
         std::string fullstem() const;
 
         std::string dir() const;
+
+        bool is_feature() const { return !feature.empty(); }
 
         PackageSpec spec;
         std::string version;

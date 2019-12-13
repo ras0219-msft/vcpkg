@@ -13,45 +13,48 @@
 
 namespace vcpkg::Dependencies
 {
-    struct ClusterInstalled
+    namespace
     {
-        InstalledPackageView ipv;
-        std::set<PackageSpec> remove_edges;
-        std::set<std::string> original_features;
-    };
+        struct ClusterInstalled
+        {
+            InstalledPackageView ipv;
+            std::set<PackageSpec> remove_edges;
+            std::set<std::string> original_features;
+        };
 
-    struct ClusterSource
-    {
-        const SourceControlFileLocation* scfl = nullptr;
-        std::unordered_map<std::string, std::vector<FeatureSpec>> build_edges;
-    };
+        struct ClusterSource
+        {
+            const SourceControlFileLocation* scfl = nullptr;
+            std::unordered_map<std::string, std::vector<FeatureSpec>> build_edges;
+        };
 
-    /// <summary>
-    /// Representation of a package and its features in a ClusterGraph.
-    /// </summary>
-    struct Cluster : Util::MoveOnlyBase
-    {
-        PackageSpec spec;
+        /// <summary>
+        /// Representation of a package and its features in a ClusterGraph.
+        /// </summary>
+        struct Cluster : Util::MoveOnlyBase
+        {
+            PackageSpec spec;
 
-        Optional<ClusterInstalled> installed;
-        Optional<ClusterSource> source;
+            Optional<ClusterInstalled> installed;
+            Optional<ClusterSource> source;
 
-        // Note: this map can contain "special" strings such as "" and "*"
-        std::unordered_map<std::string, bool> plus;
-        std::set<std::string> to_install_features;
-        bool minus = false;
-        bool transient_uninstalled = true;
-        RequestType request_type = RequestType::AUTO_SELECTED;
-    };
+            // Note: this map can contain "special" strings such as "" and "*"
+            std::unordered_map<std::string, bool> plus;
+            std::set<std::string> to_install_features;
+            bool minus = false;
+            bool transient_uninstalled = true;
+            RequestType request_type = RequestType::AUTO_SELECTED;
+        };
 
-    struct ClusterPtr
-    {
-        Cluster* ptr;
+        struct ClusterPtr
+        {
+            Cluster* ptr;
 
-        Cluster* operator->() const { return ptr; }
-    };
+            Cluster* operator->() const { return ptr; }
+        };
 
-    bool operator==(const ClusterPtr& l, const ClusterPtr& r) { return l.ptr == r.ptr; }
+        bool operator==(const ClusterPtr& l, const ClusterPtr& r) { return l.ptr == r.ptr; }
+    }
 }
 
 namespace std
@@ -122,11 +125,11 @@ namespace vcpkg::Dependencies
         const PortFileProvider& m_provider;
     };
 
-    std::string to_output_string(RequestType request_type,
-                                 const CStringView s,
-                                 const Build::BuildPackageOptions& options,
-                                 const fs::path& install_port_path,
-                                 const fs::path& default_port_path)
+    static std::string to_output_string(RequestType request_type,
+                                        const CStringView s,
+                                        const Build::BuildPackageOptions& options,
+                                        const fs::path& install_port_path,
+                                        const fs::path& default_port_path)
     {
         if (!default_port_path.empty() &&
             !Strings::case_insensitive_ascii_starts_with(install_port_path.u8string(), default_port_path.u8string()))
@@ -545,7 +548,7 @@ namespace vcpkg::Dependencies
                                                      ? RequestType::USER_REQUESTED
                                                      : RequestType::AUTO_SELECTED;
 
-                auto maybe_ipv = status_db.find_all_installed(spec);
+                auto maybe_ipv = status_db.get_installed_package_view(spec);
 
                 if (auto p_ipv = maybe_ipv.get())
                 {
@@ -703,7 +706,8 @@ namespace vcpkg::Dependencies
             }
         }
 
-        // This feature was or will be uninstalled, therefore we need to rebuild
+        // The feature was not previously installed. Mark the cluster
+        // (aka the entire port) to be removed before re-adding it.
         mark_minus(cluster, graph, graph_plan, prevent_default_features);
 
         return follow_plus_dependencies(feature, cluster, graph, graph_plan, prevent_default_features);
@@ -814,8 +818,7 @@ namespace vcpkg::Dependencies
     /// List of package names for which default features should not be installed instead of the core package (e.g. if
     /// the user is currently installing specific features of that package).
     /// </param>
-    void PackageGraph::install(const FeatureSpec& spec,
-                               const std::unordered_set<std::string>& prevent_default_features) const
+    void PackageGraph::install(const FeatureSpec& spec, const std::unordered_set<std::string>& prevent_default_features)
     {
         Cluster& spec_cluster = m_graph->get(spec.spec());
         spec_cluster.request_type = RequestType::USER_REQUESTED;
@@ -831,7 +834,7 @@ namespace vcpkg::Dependencies
         m_graph_plan->install_graph.add_vertex(ClusterPtr{&spec_cluster});
     }
 
-    void PackageGraph::upgrade(const PackageSpec& spec) const
+    void PackageGraph::upgrade(const PackageSpec& spec)
     {
         Cluster& spec_cluster = m_graph->get(spec);
         spec_cluster.request_type = RequestType::USER_REQUESTED;
