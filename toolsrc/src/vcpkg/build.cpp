@@ -398,6 +398,7 @@ namespace vcpkg::Build
             {"PORT", build_action.scfl.source_control_file->core_paragraph->name},
             {"CURRENT_PORT_DIR", build_action.scfl.source_location},
             {"VCPKG_ROOT_PATH", paths.root},
+            {"CURRENT_INSTALLED_DIR", paths.installed / triplet.canonical_name()},
             {"TARGET_TRIPLET", triplet.canonical_name()},
             {"TARGET_TRIPLET_FILE", paths.get_triplet_file_path(triplet).u8string()},
             {"ENV_OVERRIDES_FILE", build_action.scfl.source_location / "environment-overrides.cmake"},
