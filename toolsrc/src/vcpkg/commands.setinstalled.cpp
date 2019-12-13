@@ -69,6 +69,12 @@ namespace vcpkg::Commands::SetInstalled
 
         Build::compute_all_abi_tags(paths, abi_tag_map, pre_build_info_cache, target_action_plan, {});
 
+        for (auto&& action : target_action_plan)
+        {
+            auto&& abi = action.install_action.value_or_exit(VCPKG_LINE_INFO).abi;
+            if (abi.has_value() && !abi.get()->tag.empty()) all_abis.emplace(abi.get()->tag);
+        }
+
         auto status_db = database_load_check(paths);
 
         std::vector<PackageSpec> specs_to_remove;
@@ -113,6 +119,13 @@ namespace vcpkg::Commands::SetInstalled
                     ba->build_options = install_plan_options;
                 }
             }
+        }
+
+        abi_tag_map.clear();
+        if (GlobalState::g_binary_caching)
+        {
+            // Fill in the abi fields of all install actions
+            Build::compute_all_abi_tags(paths, abi_tag_map, pre_build_info_cache, real_action_plan, status_db);
         }
 
         Dependencies::print_plan(real_action_plan, true);

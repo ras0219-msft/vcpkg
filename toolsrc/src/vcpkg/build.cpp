@@ -452,34 +452,6 @@ namespace vcpkg::Build
         return variables;
     }
 
-    static std::string make_build_cmd(const VcpkgPaths& paths,
-                                      const PreBuildInfo& pre_build_info,
-                                      const Dependencies::BuildAndInstallAction& build_action,
-                                      const std::set<std::string>& features_list,
-                                      const Triplet& triplet)
-    {
-        const Toolset& toolset = paths.get_toolset(pre_build_info);
-        const fs::path& cmake_exe_path = paths.get_tool_exe(Tools::CMAKE);
-        std::vector<System::CMakeVariable> variables =
-            get_cmake_vars(paths, build_action, features_list, triplet, toolset);
-
-        const std::string cmd_launch_cmake = System::make_cmake_cmd(cmake_exe_path, paths.ports_cmake, variables);
-
-        std::string command = make_build_env_cmd(pre_build_info, toolset);
-        if (!command.empty())
-        {
-#ifdef _WIN32
-            command.append(" & ");
-#else
-            command.append(" && ");
-#endif
-        }
-
-        command.append(cmd_launch_cmake);
-
-        return command;
-    }
-
     static std::string get_triplet_abi(const VcpkgPaths& paths,
                                        const PreBuildInfo& pre_build_info,
                                        const Triplet& triplet)
@@ -562,8 +534,6 @@ namespace vcpkg::Build
 
         const auto timer = Chrono::ElapsedTimer::create_started();
 
-        std::string command = make_build_cmd(paths, pre_build_info, build_action, config.feature_list, triplet);
-
 #if defined(_WIN32)
         auto env_cmd = make_build_env_cmd(pre_build_info, paths.get_toolset(pre_build_info));
 
@@ -591,6 +561,11 @@ namespace vcpkg::Build
 #else
         System::Environment env;
 #endif
+
+        const fs::path& cmake_exe_path = paths.get_tool_exe(Tools::CMAKE);
+        std::vector<System::CMakeVariable> cmake_variables =
+            get_cmake_vars(paths, build_action, config.feature_list, triplet, paths.get_toolset(pre_build_info));
+        auto command = System::make_cmake_cmd(cmake_exe_path, paths.ports_cmake, cmake_variables);
 
         const int return_code = System::cmd_execute(command, env);
         // With the exception of empty packages, builds in "Download Mode" always result in failure.
