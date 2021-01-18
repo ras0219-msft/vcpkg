@@ -8,9 +8,15 @@ RUN mkdir ~/bin && cd ~/bin && curl -L --output ninja-linux.zip https://github.c
 RUN wget https://github.com/PowerShell/PowerShell/releases/download/v7.1.0/powershell_7.1.0-1.ubuntu.20.04_amd64.deb && \
     dpkg -i powershell_7.1.0-1.ubuntu.20.04_amd64.deb && \
     rm powershell_7.1.0-1.ubuntu.20.04_amd64.deb
-    
+
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get install -y apt-transport-https ca-certificates curl gnupg2 lsb-release \
+    && curl -fsSL https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]')/gpg | apt-key add - 2>/dev/null \
+    && echo "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list
+
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install build-essential cmake gdb pkg-config autoconf automake \
+    docker-ce-cli \
     && apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 ENV PATH /root/bin:$PATH
