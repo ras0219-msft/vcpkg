@@ -2,6 +2,15 @@
 
 **The latest version of this documentation is available on [GitHub](https://github.com/Microsoft/vcpkg/tree/master/docs/users/mingw.md).**
 
+*MinGW is community-supported and not tested as part of vcpkg repository's CI process.*
+
+## Table of Contents
+
+ - [Mingw-w64 community triplets](#Mingw-w64-community-triplets)
+ - [Using Mingw-w64 natively on Windows](#Using-Mingw-w64-natively-on-Windows)
+   - [How to avoid mixing different installations](#How-to-avoid-mixing-different-installations)
+ - [Using Mingw-w64 to build Windows programs on other systems](#Using-Mingw-w64-to-build-Windows-programs-on-other-systems)
+
 ## Mingw-w64 community triplets
 
 Vcpkg includes
@@ -78,7 +87,7 @@ export VCPKG_DEFAULT_HOST_TRIPLET=x64-mingw-dynamic
 Now you can test your setup:
 
 ```bash
-./vcpkg install zlib
+./vcpkg install zlib # This should install zlib:x64-mingw-dynamic
 ```
 
 ### How to avoid mixing different installations
@@ -100,9 +109,9 @@ try to keep the directories of the msys subsystem (`/usr/bin`, `bin`)
 out of the `PATH` environment variable as found by vcpkg. In bash, you
 may modify the `PATH` just for a single call of vcpkg:
 
-~~~
+```bash
 PATH="${PATH/:\/usr\/bin:\/bin:/:}" ./vcpkg install libpq
-~~~
+```
 
 Alternatively, you may run vcpkg from a regular Command Prompt, after
 adding *only* the desired mingw directory (e.g. `C:\msys64\mingw64\bin`)
@@ -124,7 +133,7 @@ or [prefix](https://repology.org/projects/?search=mingw-w64-).
 As an example, for Debian-based distributions, you would start with
 this installation command for the x64 toolchain:
 
-```
+```bash
 sudo apt-get install gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
 ```
 
@@ -133,7 +142,7 @@ might be older releases which lack some useful features or bug fixes.
 An alternative independent toolchain is offered by [MXE](https://mxe.cc/).
 
 For vcpkg bootstrapping, clone the github repository and run the
-bootstrap-vcpkg.sh script:
+`bootstrap-vcpkg.sh` script:
 
 ```bash
 git clone https://github.com/microsoft/vcpkg.git
