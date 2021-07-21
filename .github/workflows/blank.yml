@@ -36,13 +36,11 @@ jobs:
           git config user.name "none"
 
           ./vcpkg format-manifest ports/*/vcpkg.json
-          TMPFILE=$(mktemp)
-          git diff >"${TMPFILE}"
-          reviewdog -f=diff -f.diff.strip=1 -reporter=github-pr-review < "${TMPFILE}"
-
           git add -u
           git commit -m "tmp"
           ./vcpkg x-add-version --overwrite-version --all --skip-formatting-check
+          git reset HEAD~ --mixed
+
           TMPFILE=$(mktemp)
           git diff >"${TMPFILE}"
-          reviewdog -f=diff -f.diff.strip=1 -reporter=github-pr-review < "${TMPFILE}"
+          reviewdog -f=diff -f.diff.strip=1 -filter-mode=nofilter -reporter=github-pr-review < "${TMPFILE}"
