@@ -57,7 +57,7 @@ jobs:
 
             var output = ''
             if (format !== "") {
-              output += "Did you remember to format any modified manifest files?\n"
+              output += "Did you remember to format all modified manifest files?\n"
               output += "`./vcpkg format-manifest ports/*/vcpkg.json`\n"
               output += "```diff\n" + format + "\n```\n\n"
             }
@@ -72,7 +72,7 @@ jobs:
                 owner: context.repo.owner,
                 pull_number: context.issue.number,
                 repo: context.repo.repo,
-                event: 'APPROVED'
+                event: 'APPROVE'
               })
             }
             else {
