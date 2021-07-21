@@ -52,8 +52,8 @@ jobs:
         with:
           script: |
             const { promises: fs } = require('fs')
-            const add_version = await fs.readFile('.github-pr.x-add-version', 'utf8')
-            const format = await fs.readFile('.github-pr.format-manifest', 'utf8')
+            const add_version = (await fs.readFile('.github-pr.x-add-version', 'utf8')).trim()
+            const format = (await fs.readFile('.github-pr.format-manifest', 'utf8')).trim()
 
             var output = ''
             if (format !== "") {
@@ -62,7 +62,7 @@ jobs:
               output += "```diff\n" + format + "\n```\n\n"
             }
             if (add_version !== "") {
-              output += "Did you remember to update the version database after committing?\n"
+              output += "Did you remember to update the version database after committing all other changes?\n"
               output += "`./vcpkg x-add-version --all --overwrite-versions`\n"
               output += "```diff\n" + add_version + "\n```\n\n"
             }
