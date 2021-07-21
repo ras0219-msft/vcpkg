@@ -43,4 +43,4 @@ jobs:
 
           TMPFILE=$(mktemp)
           git diff >"${TMPFILE}"
-          reviewdog -f=diff -f.diff.strip=1 -filter-mode=nofilter -reporter=github-pr-check < "${TMPFILE}"
+          reviewdog -f=diff -f.diff.strip=1 -filter-mode=nofilter -reporter=github-pr-review < "${TMPFILE}"
