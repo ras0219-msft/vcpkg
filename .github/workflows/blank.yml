@@ -11,11 +11,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: reviewdog/action-setup@v1
-        with:
-          reviewdog_version: latest # Optional. [latest,nightly,v.X.Y.Z]
+      - name: PR head repo
+        id: head_repo_name
+        run: |
+          HEAD_REPO_NAME=$(jq -r '.pull_request.head.repo.full_name' "$GITHUB_EVENT_PATH")
+          echo "PR head repo: $HEAD_REPO_NAME"
+          echo "::set-output name=repo::$HEAD_REPO_NAME"
 
-      - uses: actions/checkout@v2
+      - name: Checkout git repo
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ steps.head_repo_name.outputs.repo }}
+          fetch-depth: 0
 
       - uses: actions/cache@v2
         id: cache
@@ -29,47 +36,49 @@ jobs:
         run: ./bootstrap-vcpkg.sh
 
       - name: Formatting
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.email "none@none.none"
           git config user.name "none"
 
           ./vcpkg format-manifest ports/*/vcpkg.json
+          git diff >.github-pr.format-manifest
           git add -u
-          git commit -m "tmp"
+          git commit -m "tmp" --allow-empty
           ./vcpkg x-add-version --overwrite-version --all --skip-formatting-check
+          git diff >.github-pr.x-add-version
           git reset HEAD~ --mixed
 
-          TMPFILE=$(mktemp)
-          git diff >"${TMPFILE}"
-          reviewdog -f=diff -f.diff.strip=1 -filter-mode=nofilter -reporter=github-pr-review < "${TMPFILE}"
-
-      - name: View context attributes
-        uses: actions/github-script@v4
-        if: always()
-        with:
-          script: console.log(context)
-
       - uses: actions/github-script@v4
-        if: always()
         with:
           script: |
-            github.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '👋 Thanks for reporting!'
-            })
+            const { promises: fs } = require('fs')
+            const add_version = await fs.readFile('.github-pr.x-add-version', 'utf8')
+            const format = await fs.readFile('.github-pr.format-manifest', 'utf8')
 
-      - uses: actions/github-script@v4
-        if: always()
-        with:
-          script: |
-            github.pulls.createReview({
-              owner: context.repo.owner,
-              pull_number: context.issue.number,
-              repo: context.repo.repo,
-              body: 'Did you remember to run `vcpkg x-add-version --all --overwrite-versions`?',
-              event: 'REQUEST_CHANGES'
-            })
+            var output = ''
+            if (format !== "") {
+              output += "Did you remember to format (`./vcpkg format-manifest ports/*/vcpkg.json`)?\n```diff\n${format}\n```\n\n"
+            }
+            if (add_version !== "") {
+              output += "Did you remember to update the version database after committing?\n"
+              output += "`./vcpkg x-add-version --all --overwrite-versions`\n"
+              output += "```diff\n${add_version}\n```\n\n"
+            }
+
+            if (output === "") {
+              github.pulls.createReview({
+                owner: context.repo.owner,
+                pull_number: context.issue.number,
+                repo: context.repo.repo,
+                event: 'APPROVED'
+              })
+            }
+            else {
+              github.pulls.createReview({
+                owner: context.repo.owner,
+                pull_number: context.issue.number,
+                repo: context.repo.repo,
+                body: output,
+                event: 'REQUEST_CHANGES'
+              })
+            }
