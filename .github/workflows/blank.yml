@@ -57,12 +57,14 @@ jobs:
 
             var output = ''
             if (format !== "") {
-              output += "Did you remember to format (`./vcpkg format-manifest ports/*/vcpkg.json`)?\n```diff\n${format}\n```\n\n"
+              output += "Did you remember to format any modified manifest files?\n"
+              output += "`./vcpkg format-manifest ports/*/vcpkg.json`\n"
+              output += "```diff\n" + format + "\n```\n\n"
             }
             if (add_version !== "") {
               output += "Did you remember to update the version database after committing?\n"
               output += "`./vcpkg x-add-version --all --overwrite-versions`\n"
-              output += "```diff\n${add_version}\n```\n\n"
+              output += "```diff\n" + add_version + "\n```\n\n"
             }
 
             if (output === "") {
