@@ -28,7 +28,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: ./bootstrap-vcpkg.sh
 
-      - name: Run a one-line script
+      - name: Formatting
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -38,12 +38,11 @@ jobs:
           ./vcpkg format-manifest ports/*/vcpkg.json
           TMPFILE=$(mktemp)
           git diff >"${TMPFILE}"
-          git add -u
-          git commit -m "formatted"
           reviewdog -f=diff -f.diff.strip=1 -reporter=github-pr-review < "${TMPFILE}"
 
+          git add -u
+          git commit -m "tmp"
           ./vcpkg x-add-version --overwrite-version --all --skip-formatting-check
           TMPFILE=$(mktemp)
           git diff >"${TMPFILE}"
-          git stash -u && git stash drop
-          reviewdog -f=diff -f.diff.strip=1 -reporter=github-pr-check < "${TMPFILE}"
+          reviewdog -f=diff -f.diff.strip=1 -reporter=github-pr-review < "${TMPFILE}"
