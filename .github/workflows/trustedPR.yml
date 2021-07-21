@@ -1,4 +1,7 @@
 # Modelled after https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+
+# These "checks" are also performed as part of our critical-path azure-pipelines review,
+# however here they are better able to post back to the original PR
 name: Formatting Review
 
 on:

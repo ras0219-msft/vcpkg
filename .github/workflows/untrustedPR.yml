@@ -29,13 +29,14 @@ jobs:
 
       - name: Formatting
         run: |
-          git config user.email "none@none.none"
-          git config user.name "none"
+          git config user.email github-actions
+          git config user.name github-actions@github.com
 
           ./vcpkg format-manifest ports/*/vcpkg.json
           git diff > .github-pr.format-manifest
           git add -u
           git commit -m "tmp" --allow-empty
+          git -c protocol.version=2 fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 origin ${{ github.event.pull_request.base.sha }}
           git checkout ${{ github.event.pull_request.base.sha }} -- versions
           git restore --staged versions
           ./vcpkg x-add-version --all --skip-formatting-check
