@@ -9,8 +9,6 @@
   "dependencies": [
     {
       "name": "boost-asio",
-
-      
       "platform": "!uwp & !windows"
     },
     {
