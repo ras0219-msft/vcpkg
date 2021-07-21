@@ -44,3 +44,32 @@ jobs:
           TMPFILE=$(mktemp)
           git diff >"${TMPFILE}"
           reviewdog -f=diff -f.diff.strip=1 -filter-mode=nofilter -reporter=github-pr-review < "${TMPFILE}"
+
+      - name: View context attributes
+        uses: actions/github-script@v4
+        if: always()
+        with:
+          script: console.log(context)
+
+      - uses: actions/github-script@v4
+        if: always()
+        with:
+          script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Thanks for reporting!'
+            })
+
+      - uses: actions/github-script@v4
+        if: always()
+        with:
+          script: |
+            github.pulls.createReview({
+              owner: context.repo.owner,
+              pull_number: context.issue.number,
+              repo: context.repo.repo,
+              body: 'Did you remember to run `vcpkg x-add-version --all --overwrite-versions`?',
+              event: 'REQUEST_CHANGES'
+            })
