@@ -223,13 +223,11 @@ function(vcpkg_download_distfile VAR)
                     ${request_headers}
                     --debug
                     --feature-flags=-manifests # there's a bug in vcpkg x-download when it finds a manifest-root
-                OUTPUT_VARIABLE output
-                ERROR_VARIABLE output
                 RESULT_VARIABLE failure
                 WORKING_DIRECTORY "${DOWNLOADS}"
             )
+            message("$ENV{VCPKG_COMMAND} RETURNED '${failure}'")
             if(failure)
-                message("${output}")
                 set(download_success 0)
             else()
                 set(download_success 1)
