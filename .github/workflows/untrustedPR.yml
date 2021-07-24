@@ -59,19 +59,19 @@ jobs:
 
             var output = ''
             if (format !== "") {
-              output += "<details><summary><b>All manifest files must be formatted</b></summary>\n"
+              output += "<details><summary><b>All manifest files must be formatted</b></summary>\n\n"
               output += "`./vcpkg format-manifest ports/*/vcpkg.json`\n"
               output += "<details><summary><b>Diff</b></summary>\n\n"
               output += "```diff\n" + format + "\n```\n"
               output += "</details></details>\n\n"
             }
             if (add_version_out !== "") {
-              output += "<details><summary><b>PRs must add only one version and must not modify any published versions</b></summary>\n"
+              output += "<details><summary><b>PRs must add only one version and must not modify any published versions</b></summary>\n\n"
               output += "When making any changes to a library, the version or port-version in `vcpkg.json` or `CONTROL` must be modified.\n"
               output += "```\n" + add_version_out + "\n```\n</details>\n"
             }
             if (add_version !== "") {
-              output += "<details><summary><b>After committing all other changes, the version database must be updated</b></summary>\n"
+              output += "<details><summary><b>After committing all other changes, the version database must be updated</b></summary>\n\n"
               output += "```sh\n"
               output += "git add -u && git commit\n"
               output += "git checkout ${{ github.event.pull_request.base.sha }} -- versions\n"
