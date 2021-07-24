@@ -11,6 +11,7 @@
       "name": "boost-asio",
       "platform": "!uwp & !windows"
     },
+    "zlib",
     {
       "name": "boost-chrono",
       "platform": "!uwp & !windows"
