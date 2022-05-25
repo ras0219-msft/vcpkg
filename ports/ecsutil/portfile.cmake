@@ -1,7 +1,3 @@
-if(VCPKG_TARGET_ARCHITECTURE STREQUAL "x86")
-    set(PLATFORM x86)
-endif()
-
 if (VCPKG_LIBRARY_LINKAGE STREQUAL dynamic)
     set(ECSUtil_CONFIGURATION_RELEASE Release)
     set(ECSUtil_CONFIGURATION_DEBUG Debug)
@@ -23,12 +19,10 @@ vcpkg_from_github(
     HEAD_REF master
 )
 
-vcpkg_install_msbuild(
+vcpkg_msbuild_install(
     SOURCE_PATH ${SOURCE_PATH}
-    PROJECT_SUBPATH ECSUtil.sln
-    PLATFORM ${PLATFORM}
+    PROJECT_SUBPATH ECSUtil/ECSUtil.vcxproj
     LICENSE_SUBPATH license.txt
-    TARGET ECSUtil
     RELEASE_CONFIGURATION ${ECSUtil_CONFIGURATION_RELEASE}
     DEBUG_CONFIGURATION ${ECSUtil_CONFIGURATION_DEBUG}
 )

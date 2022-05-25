@@ -10,27 +10,18 @@ vcpkg_from_github(
         add_additional_includes.patch
 )
 
-set(LIBFABRIC_RELEASE_CONFIGURATION "Release-v142")
-set(LIBFABRIC_DEBUG_CONFIGURATION "Debug-v142")
-
-vcpkg_install_msbuild(
+vcpkg_msbuild_install(
     SOURCE_PATH ${SOURCE_PATH}
     PROJECT_SUBPATH libfabric.vcxproj
-    INCLUDES_SUBPATH include
     LICENSE_SUBPATH COPYING
-    PLATFORM "x64"
-    RELEASE_CONFIGURATION ${LIBFABRIC_RELEASE_CONFIGURATION}
-    DEBUG_CONFIGURATION ${LIBFABRIC_RELEASE_CONFIGURATION}
+    RELEASE_CONFIGURATION Release-v142
+    DEBUG_CONFIGURATION Debug-v142
     USE_VCPKG_INTEGRATION
-    ALLOW_ROOT_INCLUDES
     OPTIONS
-      /p:SolutionDir=${SOURCE_PATH}
       /p:AdditionalIncludeDirectories="${CURRENT_INSTALLED_DIR}/include"
 )
 
 #Move includes under subdirectory to avoid colisions with other libraries
-file(RENAME "${CURRENT_PACKAGES_DIR}/include" "${CURRENT_PACKAGES_DIR}/includetemp")
 file(MAKE_DIRECTORY "${CURRENT_PACKAGES_DIR}/include")
-file(RENAME "${CURRENT_PACKAGES_DIR}/includetemp" "${CURRENT_PACKAGES_DIR}/include/libfabric")
-
-file(INSTALL "${SOURCE_PATH}/COPYING" DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}" RENAME copyright)
+file(COPY "${SOURCE_PATH}/include" DESTINATION "${CURRENT_PACKAGES_DIR}/include")
+file(RENAME "${CURRENT_PACKAGES_DIR}/include/include" "${CURRENT_PACKAGES_DIR}/include/libfabric")

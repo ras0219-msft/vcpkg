@@ -4,6 +4,16 @@
   "description": "The reference software implementation for the video coding formats VP8 and VP9.",
   "homepage": "https://github.com/webmproject/libvpx",
   "license": "BSD-3-Clause",
+  "dependencies": [
+    {
+      "host": true,
+      "name": "vcpkg-msbuild2"
+    },
+    {
+      "host": true,
+      "name": "vcpkg-cmake"
+    }
+  ],
   "features": {
     "highbitdepth": {
       "description": "use VP9 high bit depth (10/12) profiles"

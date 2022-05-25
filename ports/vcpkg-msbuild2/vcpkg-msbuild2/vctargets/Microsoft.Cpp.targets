@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <Import Project="$(ForceImportBeforeCppTargets)" Condition="'$(ForceImportBeforeCppTargets)'!=''" />
+
+    <Target Name="PrepareForBuild">
+        <ItemGroup>
+            <Link Include="Bogus"/>
+            <ClObject Include="@(ClCompile->'%(Filename).obj')"/>
+        </ItemGroup>
+        <PropertyGroup>
+            <CXX Condition="'$(CXX)'==''">cl.exe</CXX>
+            <LD Condition="'$(LD)'==''">link.exe</LD>
+            <!-- <CXXFLAGS>@(Flag->'/D%(Identity)', ' ') $(CXXFLAGS)</CXXFLAGS> -->
+            <CXXFLAGS>$(CXXFLAGS) @(ClCompile->Metadata('PreprocessorDefinitions')->Distinct()->'/D%(Identity)', ' ')</CXXFLAGS>
+            <CXXFLAGS>$(CXXFLAGS) @(ClCompile->Metadata('AdditionalIncludeDirectories')->Distinct()->'%22/I%(Identity)%22', ' ')</CXXFLAGS>
+            <LDFLAGS Condition="'$(ConfigurationType)'=='DynamicLibrary'">$(LDFLAGS) /dll</LDFLAGS>
+            <LDFLAGS>$(LDFLAGS) @(Link->Metadata('AdditionalDependencies')->Distinct()->'%22%(Identity)%22', ' ')</LDFLAGS>
+
+            <DefFile>@(Link->Metadata('ModuleDefinitionFile')->Distinct())</DefFile>
+            <LDFLAGS Condition="'$(DefFile)'!=''">$(LDFLAGS) /def:$(DefFile)</LDFLAGS>
+
+            <BuildOutputFile>@(Link->Metadata('OutputFile')->Distinct())</BuildOutputFile>
+            <ImportOutputFile>$([System.IO.Path]::ChangeExtension('$(BuildOutputFile)', '.lib'))</ImportOutputFile>
+
+            <LDCommand>%22$(LD)%22 $(LDFLAGS) /out:$(BuildOutputFile) @(ClCompile->'%(Filename).obj', ' ')</LDCommand>
+            <ARCommand>%22$(LD)%22 /lib $(ARFLAGS) /out:$(BuildOutputFile) @(ClCompile->'%(Filename).obj', ' ')</ARCommand>
+            <CXXCommand>%22$(CXX)%22 /MP$(VCPKG_CONCURRENCY) /c $(CXXFLAGS) @(ClCompile, ' ')</CXXCommand>
+        </PropertyGroup>
+    </Target>
+
+    <Target Name="Build" DependsOnTargets="PrepareForBuild" Returns="$(BuildOutputFile)">
+        <MakeDir Directories="$(OutDir)" />
+        <Message Importance="High" Text="$(CXXCommand)" />
+        <Exec Command="$(CXXCommand)" UseCommandProcessor="false"/>
+        <Exec Command="$(LDCommand)" UseCommandProcessor="false" Condition="'$(ConfigurationType)'!='StaticLibrary'" />
+        <Exec Command="$(ARCommand)" UseCommandProcessor="false" Condition="'$(ConfigurationType)'=='StaticLibrary'" />
+    </Target>
+</Project>

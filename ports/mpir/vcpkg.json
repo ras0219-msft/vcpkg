@@ -4,5 +4,12 @@
   "description": "Multiple Precision Integers and Rationals",
   "homepage": "https://github.com/wbhart/mpir",
   "license": "GPL-3.0-only",
-  "supports": "!(uwp | arm)"
+  "supports": "!(uwp | arm)",
+  "dependencies": [
+    {
+      "name": "vcpkg-msbuild2",
+      "platform": "windows",
+      "host": true
+    }
+  ]
 }

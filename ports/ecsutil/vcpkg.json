@@ -9,6 +9,10 @@
     {
       "name": "atlmfc",
       "platform": "windows"
+    },
+    {
+      "name": "vcpkg-msbuild2",
+      "host": true
     }
   ]
 }

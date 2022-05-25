@@ -5,5 +5,11 @@
   "description": "An implementation of getopt.",
   "homepage": "https://github.com/libimobiledevice-win32",
   "license": "LGPL-3.0-only",
-  "supports": "windows"
+  "supports": "windows",
+  "dependencies": [
+    {
+      "name": "vcpkg-msbuild2",
+      "host": true
+    }
+  ]
 }

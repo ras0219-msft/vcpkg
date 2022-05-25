@@ -281,11 +281,11 @@ __pycache__/
 
 .vscode/
 *.code-workspace
-/buildtrees/
+/buildtrees
 /build*/
 /downloads/
 /installed*/
-/packages/
+/packages
 /scripts/buildsystems/tmp/
 #ignore custom triplets
 /triplets/*

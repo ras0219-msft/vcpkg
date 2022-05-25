@@ -1,0 +1,9 @@
+{
+    "name": "vcpkg-msbuild2",
+    "version-date": "2022-04-29",
+    "license": "MIT",
+    "dependencies": [
+        "vcpkg-msbuild",
+        "vcpkg-cmake"
+    ]
+}

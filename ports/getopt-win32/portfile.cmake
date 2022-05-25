@@ -28,9 +28,7 @@ else()
 endif()
 file(WRITE "${_file}" "${_contents}")
 
-
-
-vcpkg_install_msbuild(
+vcpkg_msbuild_install(
     SOURCE_PATH ${SOURCE_PATH}
     PROJECT_SUBPATH getopt.vcxproj
     LICENSE_SUBPATH LICENSE

@@ -66,10 +66,14 @@ if (VCPKG_TARGET_IS_WINDOWS)
     else()
         message(FATAL_ERROR "Unsupported architecture: ${VCPKG_TARGET_ARCHITECTURE}")
     endif()
-    
-    vcpkg_build_msbuild(
-        PROJECT_PATH ${SOURCE_PATH}/PCBuild/pythoncore.vcxproj
+
+    set(ENV{_CL_} "/UGITVERSION /UGITTAG /UGITBRANCH")
+
+    vcpkg_msbuild_install(
+        SOURCE_PATH ${SOURCE_PATH}
+        PROJECT_SUBPATH PCBuild/pythoncore.vcxproj
         PLATFORM ${BUILD_ARCH}
+        OPTIONS /p:GIT="nothing--" /p:KillPython=false
     )
 
     vcpkg_copy_pdbs()
