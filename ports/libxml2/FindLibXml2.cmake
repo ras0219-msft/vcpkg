@@ -1,0 +1,10 @@
+set(required "")
+if(LibXml2_FIND_REQUIRED)
+    set(required "REQUIRED")
+endif()
+set(quiet "")
+if(LibXml2_FIND_QUIETLY)
+    set(quiet "QUIET")
+endif()
+
+find_package(LibXml2 CONFIG ${required} ${quiet})
