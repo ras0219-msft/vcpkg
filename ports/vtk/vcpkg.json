@@ -32,7 +32,6 @@
     "lz4",
     "netcdf-c",
     "pegtl-2",
-    "proj",
     "pugixml",
     "sqlite3",
     "tiff",
@@ -51,7 +50,6 @@
     "all": {
       "description": "Build all vtk modules",
       "dependencies": [
-        "cgns",
         "ffmpeg",
         "liblas",
         "libmysql",
@@ -63,6 +61,7 @@
           "features": [
             "gdal",
             "geojson",
+            "iocgnsreader",
             "mpi",
             "python",
             "qt",
@@ -110,6 +109,24 @@
     },
     "geojson": {
       "description": "Convert Geo JSON format to vtkPolyData"
+    },
+    "geoviscore": {
+      "description": "The VTK::GeovisCore Module",
+      "dependencies": [
+        "proj"
+      ]
+    },
+    "iocgnsreader": {
+      "description": "The VTK::IOCGNSReader Module",
+      "dependencies": [
+        "cgns"
+      ]
+    },
+    "ioexportgl2ps": {
+      "description": "The VTK::IOExportGL2PS Module",
+      "dependencies": [
+        "gl2ps"
+      ]
     },
     "mpi": {
       "description": "MPI functionality for VTK",
