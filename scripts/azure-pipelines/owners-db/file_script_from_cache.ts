@@ -92,24 +92,14 @@ function parseArgs(argv: string[]) {
 async function main() {
   const { prHashesPath, blobBaseUrl, targetBranch, outDir } = parseArgs(process.argv.slice(2));
 
-  const raw = JSON.parse(fs.readFileSync(prHashesPath, "utf8"));
+  const prHashes = JSON.parse(fs.readFileSync(prHashesPath, "utf8")) as Array<{ name: string; triplet: string; state: string; abi: string }>;
   // Expect vcpkg-tool produced format: array of objects
   // [ { "name": "zlib", "triplet": "x64-windows", "state": "pass", "abi": "zlib:x64-windows:<sha>" }, ... ]
-  if (!Array.isArray(raw)) {
+  if (!Array.isArray(prHashes)) {
     console.error(
-      `Invalid pr-hashes.json format: expected a top-level JSON array (vcpkg-tool output). Legacy map format is no longer supported.`
+      `Invalid pr-hashes.json format: expected a top-level JSON array (vcpkg-tool output).`
     );
     process.exit(2);
-  }
-  // Build a normalized map: prHashesMap[portname] -> { abi }
-  const prHashes: { [port: string]: { abi?: string } } = {};
-  for (const item of raw) {
-    const name = item.name;
-    let abi = item.abi;
-    // ABI is in the form 'name:triplet:sha', extract the last segment
-    const parts = abi.split(":");
-    abi = parts.length > 0 ? parts[parts.length - 1] : abi;
-    prHashes[name] = { abi };
   }
 
   const dbLines: string[] = [];
@@ -138,32 +128,33 @@ async function main() {
   }
 
   for (const port of changedPorts) {
-  const info = prHashes[port];
-  const abi = info && info.abi;
-    if (!abi) {
-      console.warn(`No ABI found for port ${port}; skipping`);
-      continue;
-    }
-    // blob named <sha>.zip
-    // Ensure we append the ABI path before the SAS query string, i.e.:
-    // https://.../<container>/<sha>.zip?<sas>
-    let blobUrl: string;
-    try {
-      const u = new URL(blobBaseUrl);
-      const sas = u.search; // includes leading '?' or empty
-      // build base path without query and without trailing slash
-      const baseNoQuery = `${u.origin}${u.pathname.replace(/[\/\\]+$/g, "")}`;
-      blobUrl = sas ? `${baseNoQuery}/${abi}.zip${sas}` : `${baseNoQuery}/${abi}.zip`;
-    } catch (e) {
-      console.error(`Invalid blob base URL provided: ${blobBaseUrl} -- ${e}`);
-      process.exit(2);
-    }
-    console.log(`Downloading ${blobUrl} for port ${port}...`);
-    try {
-      const buf = await downloadUrlToBuffer(blobUrl);
-      listZipFiles(buf, `${port}:installed`, dbLines, headerLines);
-    } catch (err) {
-      console.warn(`Failed to download or process blob for ${port}: ${err}`);
+    for (const item of prHashes) {
+      if (item.name !== port) continue;
+      // ABI is in the form 'name:triplet:sha', extract the last segment
+      const parts = item.abi.split(":");
+      if (parts.length !== 3) throw new Error(`Invalid ABI format in pr-hashes.json for port ${port}: ${item.abi}`);
+      const abi = parts[2];
+      // blob named <sha>.zip
+      // Ensure we append the ABI path before the SAS query string, i.e.:
+      // https://.../<container>/<sha>.zip?<sas>
+      let blobUrl: string;
+      try {
+        const u = new URL(blobBaseUrl);
+        const sas = u.search; // includes leading '?' or empty
+        // build base path without query and without trailing slash
+        const baseNoQuery = `${u.origin}${u.pathname.replace(/[\/\\]+$/g, "")}`;
+        blobUrl = sas ? `${baseNoQuery}/${abi}.zip${sas}` : `${baseNoQuery}/${abi}.zip`;
+      } catch (e) {
+        console.error(`Invalid blob base URL provided: ${blobBaseUrl} -- ${e}`);
+        process.exit(2);
+      }
+      console.log(`Downloading ${blobUrl} for port ${port}...`);
+      try {
+        const buf = await downloadUrlToBuffer(blobUrl);
+        listZipFiles(buf, `${port}:${parts[1]}`, dbLines, headerLines);
+      } catch (err) {
+        console.warn(`Failed to download or process blob for ${port}: ${err}`);
+      }
     }
   }
 
