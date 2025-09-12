@@ -49,7 +49,7 @@ async function main() {
   }
 
   const prHashesPath = args[0];
-  const blobBaseUrl = args[1].replace(/\/+$/, "");
+  const blobBaseUrl = args[1].replace(/[\/\\]+$/g, "");
   const targetBranch = args[2] || "master";
 
   if (!fs.existsSync(prHashesPath)) {
@@ -93,7 +93,19 @@ async function main() {
       continue;
     }
     // blob named <sha>.zip
-    const blobUrl = `${blobBaseUrl}/${abi}.zip`;
+    // Ensure we append the ABI path before the SAS query string, i.e.:
+    // https://.../<container>/<sha>.zip?<sas>
+    let blobUrl: string;
+    try {
+      const u = new URL(blobBaseUrl);
+      const sas = u.search; // includes leading '?' or empty
+      // build base path without query and without trailing slash
+      const baseNoQuery = `${u.origin}${u.pathname.replace(/[\\/\\]+$/g, "")}`;
+      blobUrl = sas ? `${baseNoQuery}/${abi}.zip${sas}` : `${baseNoQuery}/${abi}.zip`;
+    } catch (e) {
+      console.error(`Invalid blob base URL provided: ${blobBaseUrl} -- ${e}`);
+      process.exit(2);
+    }
     console.log(`Downloading ${blobUrl} for port ${port}...`);
     try {
       const buf = await downloadUrlToBuffer(blobUrl);
