@@ -69,6 +69,8 @@ jobs:
     condition: ne(variables['FAILURE_LOGS_EMPTY'], 'True')
   - task: UseNode@1
     displayName: 'Ensure Node.js is available'
+    inputs:
+      version: '22.x'
   - bash: |
       cd scripts/azure-pipelines/owners-db && npm ci || true
       blob=$(cat blob_base_url.txt)
