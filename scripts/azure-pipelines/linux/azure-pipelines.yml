@@ -113,10 +113,10 @@ jobs:
       blob=$(cat blob_base_url.txt)
       if [ "$(Build.Reason)" = "PullRequest" ]; then
         echo "Running file_script_from_cache for PR"
-        npx --yes ts-node ./file_script_from_cache.ts "/vcpkg/pr-hashes.json" "$blob" "origin/master"
+        npx --yes ts-node ./file_script_from_cache.ts --pr-hashes "/vcpkg/pr-hashes.json" --blob-base-url "$blob" --target-branch "origin/master" --out-dir ../../list_files
       else
         echo "Running file_script for CI"
-        npx --yes ts-node ./file_script.ts /mnt/vcpkg-ci/installed/vcpkg/info/
+        npx --yes ts-node ./file_script.ts --info-dir /mnt/vcpkg-ci/installed/vcpkg/info/ --out-dir ../../list_files
       fi
     displayName: 'Build a file list for all packages'
     condition: always()

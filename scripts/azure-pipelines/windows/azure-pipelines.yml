@@ -101,10 +101,10 @@ jobs:
         npm ci -s
         if ($env:BUILD_REASON -eq 'PullRequest') {
           Write-Host 'Running file_script_from_cache for PR'
-          npx --yes ts-node ./file_script_from_cache.ts "$env:BUILD_ARTIFACTSTAGINGDIRECTORY/pr-hashes.json" "$(Get-Content ./blob_base_url.txt)" "origin/master"
+          npx --yes ts-node ./file_script_from_cache.ts --pr-hashes "$env:BUILD_ARTIFACTSTAGINGDIRECTORY/pr-hashes.json" --blob-base-url "$(Get-Content ./blob_base_url.txt)" --target-branch "origin/master" --out-dir ../../list_files
         } else {
           Write-Host 'Running file_script for CI'
-          npx --yes ts-node ./file_script.ts D:\installed\vcpkg\info\
+          npx --yes ts-node ./file_script.ts --info-dir D:\installed\vcpkg\info\ --out-dir ../../list_files
         }
       pwsh: true
   - task: PublishPipelineArtifact@1

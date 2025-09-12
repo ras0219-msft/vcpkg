@@ -35,29 +35,62 @@ function genAllFileStrings(
   }
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  if (args.length < 1) {
-    console.error("Usage: file_script.ts <path-to-info-dir>");
+function usage() {
+  console.error("Usage: file_script.ts --info-dir <path-to-info-dir> [--out-dir <path>]");
+}
+
+function parseArgs(argv: string[]) {
+  // supports: --info-dir <path> --out-dir <path>
+  // legacy: single positional arg = info-dir
+  let infoDir: string | undefined;
+  let outDir = "scripts/list_files";
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--info-dir") {
+      i++;
+      infoDir = argv[i];
+    } else if (a === "--out-dir") {
+      i++;
+      outDir = argv[i];
+    } else if (a.startsWith("--")) {
+      console.error(`Unknown argument: ${a}`);
+      usage();
+      process.exit(2);
+    } else if (!infoDir) {
+      // positional fallback
+      infoDir = a;
+    } else {
+      console.error(`Unexpected positional argument: ${a}`);
+      usage();
+      process.exit(2);
+    }
+  }
+  if (!infoDir) {
+    console.error("info-dir is required");
+    usage();
     process.exit(2);
   }
-  const dir = args[0];
+  return { infoDir, outDir };
+}
+
+function main() {
+  const { infoDir: dir, outDir } = parseArgs(process.argv.slice(2));
   try {
-    fs.mkdirSync("scripts/list_files", { recursive: true });
+    fs.mkdirSync(outDir, { recursive: true });
   } catch (err) {
     // ignore
   }
 
+  const headersPath = path.join(outDir, "VCPKGHeadersDatabase.txt");
+  const dbPath = path.join(outDir, "VCPKGDatabase.txt");
+  const headers = fs.createWriteStream(headersPath, { encoding: "utf8" });
+  const output = fs.createWriteStream(dbPath, { encoding: "utf8" });
   try {
-    const headers = fs.createWriteStream("scripts/list_files/VCPKGHeadersDatabase.txt", { encoding: "utf8" });
-    const output = fs.createWriteStream("scripts/list_files/VCPKGDatabase.txt", { encoding: "utf8" });
     const files = getFiles(dir);
     genAllFileStrings(dir, files, headers, output);
+  } finally {
     headers.end();
     output.end();
-  } catch (err) {
-    console.error("Failed to generate file lists", err);
-    process.exit(1);
   }
 }
 

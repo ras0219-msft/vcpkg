@@ -7,10 +7,10 @@ import { execSync } from "child_process";
 
 const keyword = "/include/";
 
-function writeOutputLines(dbLines: string[], headerLines: string[]) {
-  fs.mkdirSync("scripts/list_files", { recursive: true });
-  fs.writeFileSync("scripts/list_files/VCPKGDatabase.txt", dbLines.join("\n") + (dbLines.length ? "\n" : ""));
-  fs.writeFileSync("scripts/list_files/VCPKGHeadersDatabase.txt", headerLines.join("\n") + (headerLines.length ? "\n" : ""));
+function writeOutputLines(outDir: string, dbLines: string[], headerLines: string[]) {
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, "VCPKGDatabase.txt"), dbLines.join("\n") + (dbLines.length ? "\n" : ""));
+  fs.writeFileSync(path.join(outDir, "VCPKGHeadersDatabase.txt"), headerLines.join("\n") + (headerLines.length ? "\n" : ""));
 }
 
 function listZipFiles(buffer: Buffer, pkgName: string, dbLines: string[], headerLines: string[]) {
@@ -40,22 +40,57 @@ function downloadUrlToBuffer(url: string): Promise<Buffer> {
   });
 }
 
+function usage() {
+  console.error("Usage: file_script_from_cache.ts --pr-hashes <pr-hashes.json> --blob-base-url <blob-base-url> [--target-branch <branch>] [--out-dir <path>]");
+  console.error("blob-base-url should include SAS token (e.g. https://<account>.blob.core.windows.net/<container>/?<sas>)");
+}
+
+function parseArgs(argv: string[]) {
+  // supports: --pr-hashes <path> --blob-base-url <url> [--target-branch <branch>] [--out-dir <path>]
+  // legacy: positional: <pr-hashes> <blob-base-url> [target-branch]
+  let prHashesPath: string | undefined;
+  let blobBaseUrl: string | undefined;
+  let targetBranch = "master";
+  let outDir = "scripts/list_files";
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--pr-hashes") {
+      i++;
+      prHashesPath = argv[i];
+    } else if (a === "--blob-base-url") {
+      i++;
+      blobBaseUrl = argv[i];
+    } else if (a === "--target-branch") {
+      i++;
+      targetBranch = argv[i];
+    } else if (a === "--out-dir") {
+      i++;
+      outDir = argv[i];
+    } else if (a.startsWith("--")) {
+      console.error(`Unknown argument: ${a}`);
+      usage();
+      process.exit(2);
+    } else if (!prHashesPath) {
+      prHashesPath = a;
+    } else if (!blobBaseUrl) {
+      blobBaseUrl = a.replace(/[\/\\]+$/g, "");
+    } else if (targetBranch === "master") {
+      targetBranch = a;
+    } else {
+      console.error(`Unexpected positional argument: ${a}`);
+      usage();
+      process.exit(2);
+    }
+  }
+  if (!prHashesPath || !blobBaseUrl) {
+    usage();
+    process.exit(2);
+  }
+  return { prHashesPath, blobBaseUrl, targetBranch, outDir };
+}
+
 async function main() {
-  const args = process.argv.slice(2);
-  if (args.length < 2) {
-    console.error("Usage: file_script_from_cache.ts <pr-hashes.json> <blob-base-url> [target-branch]");
-    console.error("blob-base-url should include SAS token (e.g. https://<account>.blob.core.windows.net/<container>/?<sas>)");
-    process.exit(2);
-  }
-
-  const prHashesPath = args[0];
-  const blobBaseUrl = args[1].replace(/[\/\\]+$/g, "");
-  const targetBranch = args[2] || "master";
-
-  if (!fs.existsSync(prHashesPath)) {
-    console.error(`pr-hashes file not found: ${prHashesPath}`);
-    process.exit(2);
-  }
+  const { prHashesPath, blobBaseUrl, targetBranch, outDir } = parseArgs(process.argv.slice(2));
 
   const prHashes = JSON.parse(fs.readFileSync(prHashesPath, "utf8"));
   // pr-hashes.json format: { "portname": { "abi": "<sha>" }, ... }
@@ -77,7 +112,7 @@ async function main() {
     changedPorts = Array.from(set);
     if (changedPorts.length === 0) {
       console.log(`git diff found no changed ports under ports/ for range ${gitRange}; exiting.`);
-      writeOutputLines(dbLines, headerLines);
+      writeOutputLines(outDir, dbLines, headerLines);
       return;
     }
   } catch (e) {
@@ -115,8 +150,8 @@ async function main() {
     }
   }
 
-  writeOutputLines(dbLines, headerLines);
-  console.log("Wrote scripts/list_files/VCPKGDatabase.txt and VCPKGHeadersDatabase.txt");
+  writeOutputLines(outDir, dbLines, headerLines);
+  console.log(`Wrote ${path.join(outDir, "VCPKGDatabase.txt")} and ${path.join(outDir, "VCPKGHeadersDatabase.txt")}`);
 }
 
 main().catch((e) => {
