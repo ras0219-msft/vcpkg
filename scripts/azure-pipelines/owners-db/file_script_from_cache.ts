@@ -19,6 +19,7 @@ function listZipFiles(buffer: Buffer, pkgName: string, dbLines: string[], header
   for (const e of entries) {
     if (e.isDirectory) continue;
     const entryName = "/" + e.entryName.replace(/\\/g, "/");
+    if (entryName === "/BUILD_INFO" || entryName === "/CONTROL") continue;
     dbLines.push(`${pkgName}:${entryName}`);
     if (entryName.startsWith(keyword)) {
       headerLines.push(`${pkgName}:${entryName.substring(keyword.length)}`);
