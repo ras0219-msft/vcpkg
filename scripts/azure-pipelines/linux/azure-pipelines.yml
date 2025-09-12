@@ -108,13 +108,13 @@ jobs:
     displayName: 'Ensure Node.js is available'
   - bash: |
       cd scripts/azure-pipelines/owners-db && npm ci || true
-      blob=$(cat scripts/azure-pipelines/owners-db/blob_base_url.txt || echo '')
+      blob=$(cat blob_base_url.txt)
       if [ "$(Build.Reason)" = "PullRequest" ]; then
         echo "Running file_script_from_cache for PR"
-        npx --yes ts-node file_script_from_cache.ts "$(Build.ArtifactStagingDirectory)/pr-hashes.json" "$blob" "$(System.PullRequest.TargetBranch)"
+        npx --yes ts-node ./file_script_from_cache.ts "$(Build.ArtifactStagingDirectory)/pr-hashes.json" "$blob" "$(System.PullRequest.TargetBranch)"
       else
         echo "Running file_script for CI"
-        npx --yes ts-node file_script.ts /mnt/vcpkg-ci/installed/vcpkg/info/
+        npx --yes ts-node ./file_script.ts /mnt/vcpkg-ci/installed/vcpkg/info/
       fi
     displayName: 'Build a file list for all packages'
     condition: always()

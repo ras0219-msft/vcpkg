@@ -95,13 +95,14 @@ jobs:
     inputs:
       targetType: inline
       script: |
-        cd scripts/azure-pipelines/owners-db; npm ci -s; cd -; \
+        cd scripts/azure-pipelines/owners-db
+        npm ci -s
         if ($env:BUILD_REASON -eq 'PullRequest') {
           Write-Host 'Running file_script_from_cache for PR'
-          npx --yes ts-node scripts/azure-pipelines/owners-db/file_script_from_cache.ts "$env:BUILD_ARTIFACTSTAGINGDIRECTORY/pr-hashes.json" "$(Get-Content scripts/azure-pipelines/owners-db/blob_base_url.txt)" "$env:SYSTEM_PULLREQUEST_TARGETBRANCH"
+          npx --yes ts-node ./file_script_from_cache.ts "$env:BUILD_ARTIFACTSTAGINGDIRECTORY/pr-hashes.json" "$(Get-Content ./blob_base_url.txt)" "$env:SYSTEM_PULLREQUEST_TARGETBRANCH"
         } else {
           Write-Host 'Running file_script for CI'
-          npx --yes ts-node scripts/azure-pipelines/owners-db/file_script.ts D:\installed\vcpkg\info\
+          npx --yes ts-node ./file_script.ts D:\installed\vcpkg\info\
         }
       pwsh: true
   - task: PublishPipelineArtifact@1
