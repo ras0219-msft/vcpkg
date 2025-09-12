@@ -92,8 +92,25 @@ function parseArgs(argv: string[]) {
 async function main() {
   const { prHashesPath, blobBaseUrl, targetBranch, outDir } = parseArgs(process.argv.slice(2));
 
-  const prHashes = JSON.parse(fs.readFileSync(prHashesPath, "utf8"));
-  // pr-hashes.json format: { "portname": { "abi": "<sha>" }, ... }
+  const raw = JSON.parse(fs.readFileSync(prHashesPath, "utf8"));
+  // Expect vcpkg-tool produced format: array of objects
+  // [ { "name": "zlib", "triplet": "x64-windows", "state": "pass", "abi": "zlib:x64-windows:<sha>" }, ... ]
+  if (!Array.isArray(raw)) {
+    console.error(
+      `Invalid pr-hashes.json format: expected a top-level JSON array (vcpkg-tool output). Legacy map format is no longer supported.`
+    );
+    process.exit(2);
+  }
+  // Build a normalized map: prHashesMap[portname] -> { abi }
+  const prHashes: { [port: string]: { abi?: string } } = {};
+  for (const item of raw) {
+    const name = item.name;
+    let abi = item.abi;
+    // ABI is in the form 'name:triplet:sha', extract the last segment
+    const parts = abi.split(":");
+    abi = parts.length > 0 ? parts[parts.length - 1] : abi;
+    prHashes[name] = { abi };
+  }
 
   const dbLines: string[] = [];
   const headerLines: string[] = [];
@@ -121,8 +138,8 @@ async function main() {
   }
 
   for (const port of changedPorts) {
-    const info = prHashes[port];
-    const abi = info && (info.abi || info['ABI']);
+  const info = prHashes[port];
+  const abi = info && info.abi;
     if (!abi) {
       console.warn(`No ABI found for port ${port}; skipping`);
       continue;
