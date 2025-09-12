@@ -18,7 +18,7 @@ function listZipFiles(buffer: Buffer, pkgName: string, dbLines: string[], header
   const entries = zip.getEntries();
   for (const e of entries) {
     if (e.isDirectory) continue;
-    const entryName = "/" + e.entryName.replace(/\\\\/g, "/");
+    const entryName = "/" + e.entryName.replace(/\\/g, "/");
     dbLines.push(`${pkgName}:${entryName}`);
     if (entryName.startsWith(keyword)) {
       headerLines.push(`${pkgName}:${entryName.substring(keyword.length)}`);
@@ -102,7 +102,7 @@ async function main() {
   let changedPorts: string[] = [];
   try {
     const gitRange = `${targetBranch}...HEAD`;
-    const diffOut = execSync(`git diff --name-only ${gitRange} -- ports/`, { encoding: "utf8" });
+    const diffOut = execSync(`cd ../../.. && git diff --name-only ${gitRange} -- ports/`, { encoding: "utf8" });
     const files = diffOut.split(/\r?\n/).filter((l) => l.length > 0);
     const set = new Set<string>();
     for (const f of files) {
@@ -135,7 +135,7 @@ async function main() {
       const u = new URL(blobBaseUrl);
       const sas = u.search; // includes leading '?' or empty
       // build base path without query and without trailing slash
-      const baseNoQuery = `${u.origin}${u.pathname.replace(/[\\/\\]+$/g, "")}`;
+      const baseNoQuery = `${u.origin}${u.pathname.replace(/[\/\\]+$/g, "")}`;
       blobUrl = sas ? `${baseNoQuery}/${abi}.zip${sas}` : `${baseNoQuery}/${abi}.zip`;
     } catch (e) {
       console.error(`Invalid blob base URL provided: ${blobBaseUrl} -- ${e}`);
